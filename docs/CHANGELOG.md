@@ -6,6 +6,14 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ## [Chưa phát hành]
 
+### Added
+
+- **Nền tảng chế độ thi đấu — RNG gieo hạt** (`src/core/rng.js`): bộ ngẫu nhiên tất định
+  (mulberry32 + băm seed từ chuỗi). Kèm **proof-of-concept** (`tests/seeded-stage.test.js`)
+  chứng minh trên chính game: **cùng seed → màn chơi y hệt** (bố trí vật cản/quái) ở nhiều
+  thế giới, seed khác → khác. Đây là điều kiện tiên quyết cho mọi hình thức đua công bằng
+  (luân phiên / chia màn / xếp hạng online / đua live).
+
 ### Fixed
 
 - **Quái biết LAO "bay ra rồi biến mất đột ngột"** (dơi rừng `batX` chương 6, cú vọ `owl`
