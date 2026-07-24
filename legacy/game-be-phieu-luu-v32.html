@@ -2068,7 +2068,9 @@ function update(dt){
     const d=MOB[m.type];
     mobAI(m,d,dt,k);
     m.x-=(G.vspd+d.spd)*dt;
-    if(m.fly) m.y=m.by+Math.sin(G.t*2.2+m.ph)*(d.amp||30);
+    // Dao động bay bổng CHỈ khi không lao xuống. Nếu lao (dive/dash) thì AI tự điều khiển y
+    // (đã đặt m.by=m.y); cộng thêm sin lúc này sẽ tạo vòng phản hồi làm m.by trôi khỏi màn hình.
+    if(m.fly && !(m.dive>0) && !(m.dash>0)) m.y=m.by+Math.sin(G.t*2.2+m.ph)*(d.amp||30);
     if(m.x+m.w<-60){G.mobs.splice(i,1);continue;}
     // đè đầu
     if(!m.fly && k.vy>0 && G.gv>0 && kb.x<m.x+m.w-4 && kb.x+kb.w>m.x+4 &&

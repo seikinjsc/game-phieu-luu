@@ -6,6 +6,14 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ## [Chưa phát hành]
 
+### Fixed
+
+- **Quái biết LAO "bay ra rồi biến mất đột ngột"** (dơi rừng `batX` chương 6, cú vọ `owl`
+  băng tuyết, `drone`/`orb` vũ trụ): khi lao, AI đặt `m.by=m.y` nhưng vòng lặp vẫn cộng dao
+  động sin lên → vòng phản hồi làm `m.by` trôi khỏi màn hình (tới ~627 hoặc ~-156). Nay
+  KHÔNG áp dao động khi đang lao — quái lao mượt về phía người chơi, luôn trong màn hình.
+  Kiểm chứng bằng `tests/mob-dive.test.js`.
+
 ### Changed
 
 - **`npm run build` đóng gói bản CHƠI ĐƯỢC** (`legacy/`) thành `dist/game.html` (nhúng
