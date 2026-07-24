@@ -8,6 +8,25 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ### Added
 
+- **Chia đôi màn — 2 người 1 máy, cùng lúc** (từ màn "⚔️ Đấu 2 người" → "🖥️ Chia đôi màn"):
+  hai người chạy CÙNG cửa, CÙNG seed, mỗi người một nửa màn (trên/dưới). Tái dùng nguyên
+  engine bằng cách **hoán đổi biến toàn cục `G`** giữa hai trạng thái (g1/g2) mỗi khung, vẽ
+  mỗi người vào một viewport. Phím **P1 = mũi tên + ⇧phải/“/” đánh**, **P2 = W A S D + F/⇧trái**
+  (P2 cũng dùng được tay cầm). **Mỗi người một luồng ngẫu nhiên riêng gieo cùng seed** →
+  cùng đường đua dù đè quái/nhảy khác nhau. Không đụng tiến trình thật. Logic kiểm chứng bằng
+  `tests/split.test.js`; **phần hiển thị cần thử trên trình duyệt** (harness không vẽ thật).
+- **Chơi + duyệt menu bằng tay cầm (Gamepad API)** — đọc `navigator.getGamepads()` mỗi
+  khung, phát hiện cạnh nhấn. **Trong màn chơi**: gọi thẳng `jump/attack/setMove` cho mượt;
+  ✕/◯ nhảy · ▢/△ đánh · Start tạm dừng · Select chơi lại. **Trong menu** (bản đồ/cửa hàng/
+  cài đặt/kết quả/tạm dừng): một bộ **điều hướng con trỏ theo hình học** — D-pad dời ô chọn
+  giữa các nút DOM đang hiện (chọn theo nút gần nhất về hướng bấm), ✕ chọn · ◯ quay lại ·
+  △ mở cài đặt. Không viết lại logic menu — chỉ dời `focus()` rồi gọi `.click()` của nút có
+  sẵn, nên **mọi màn nút-DOM tự động dùng được** (kể cả Đấu 2 người). Có vòng sáng vàng cho
+  ô đang chọn; nhường bàn phím khi đang gõ vào ô chữ. Không thêm thư viện. Đã kiểm tra thật
+  trên trình duyệt (di chuyển trong game + thuật toán chọn nút menu) và với tay cầm **PS3
+  qua DsHidMini** (standard mapping). Kèm `tools/gamepad-test.html` để soi/khớp nút khi dùng
+  tay cầm không chuẩn.
+
 - **Chế độ Đấu 2 người (luân phiên cùng máy)** — nút "⚔️ Đấu 2 người" ở màn bản đồ:
   chọn cửa → Người 1 chơi → Người 2 chơi **CÙNG cửa, CÙNG mã đua (seed)** → so bảng kết quả
   (qua cửa / xa hơn / nhanh hơn / nhiều xu). Công bằng: luồng ngẫu nhiên vật cản tách riêng +

@@ -1,0 +1,41 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kiểm tra tay cầm — Bé Phiêu Lưu</title>
+<style>
+  body{font-family:system-ui,Segoe UI,sans-serif;background:#0f1626;color:#eef;margin:0;padding:24px}
+  h1{font-size:20px;margin:0 0 4px} .sub{color:#9ab;margin:0 0 20px;font-size:14px}
+  #status{font-size:16px;padding:10px 14px;border-radius:10px;background:#1b2740;margin-bottom:18px}
+  .ok{background:#12351f;color:#8f8} .no{background:#3a1720;color:#f99}
+  .grid{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 22px}
+  .cell{width:74px;padding:8px 4px;border-radius:8px;background:#1b2740;text-align:center;font-size:12px}
+  .cell b{display:block;font-size:15px} .on{background:#2b6cff;color:#fff;box-shadow:0 0 0 2px #9cf}
+  .lbl{color:#9ab;font-size:12px;margin:14px 0 4px}
+  code{background:#000a;padding:1px 5px;border-radius:4px}
+</style></head><body>
+<h1>🎮 Kiểm tra tay cầm</h1>
+<p class="sub">Cắm tay cầm vào PC, <b>bấm một nút bất kỳ</b>, rồi bấm thử từng nút — ô tương ứng sẽ sáng xanh.</p>
+<div id="status" class="no">Chưa thấy tay cầm. Cắm dây USB và bấm một nút.</div>
+<div class="lbl">NÚT (số = chỉ số dùng khi map lại)</div>
+<div class="grid" id="btns"></div>
+<div class="lbl">CẦN / TRỤC (axes)</div>
+<div class="grid" id="axes"></div>
+<script>
+// Công cụ kiểm tra: đọc Gamepad API mỗi khung, sáng nút đang bấm.
+// Dùng để xác nhận tay cầm PS khớp "standard", hoặc dò chỉ số nút của stick lạ.
+const st=document.getElementById('status'), gb=document.getElementById('btns'), ga=document.getElementById('axes');
+const PS=['✕ 0','◯ 1','▢ 2','△ 3','L1 4','R1 5','L2 6','R2 7','Share 8','Opt 9','L3 10','R3 11','▲ 12','▼ 13','◀ 14','▶ 15','PS 16'];
+function draw(){
+  const gp=(navigator.getGamepads?navigator.getGamepads():[]).find(p=>p);
+  if(!gp){ st.className='no'; st.textContent='Chưa thấy tay cầm. Cắm dây USB và bấm một nút.'; requestAnimationFrame(draw); return; }
+  const std=gp.mapping==='standard';
+  st.className='ok';
+  st.innerHTML='Đã kết nối: <b>'+gp.id+'</b><br>Chuẩn nút: <code>'+(gp.mapping||'(không chuẩn — cần map lại)')+'</code>'
+    +(std?' ✅ khớp code sẵn':' ⚠️ nút có thể lệch');
+  gb.innerHTML=gp.buttons.map((b,i)=>
+    '<div class="cell'+(b.pressed?' on':'')+'"><b>'+(PS[i]||i)+'</b>'+(std?'':' #'+i)+'</div>').join('');
+  ga.innerHTML=gp.axes.map((v,i)=>
+    '<div class="cell'+(Math.abs(v)>.3?' on':'')+'">trục '+i+'<b>'+v.toFixed(2)+'</b></div>').join('');
+  requestAnimationFrame(draw);
+}
+draw();
+</script></body></html>

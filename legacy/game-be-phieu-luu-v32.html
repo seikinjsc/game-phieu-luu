@@ -409,7 +409,7 @@ const PG={unlocked:1,cleared:{},coins:0,run:null,set:null,weapon:0,armor:0,boots
   iw:0,ia:0,cramp:0,torch:0,iwDur:0,iaDur:0,crDur:0,toDur:0,
   gw:0,ga:0,grip:0,lamp:0,gwDur:0,gaDur:0,grDur:0,laDur:0,
   jw:0,ja:0,claw:0,coco:0,jwDur:0,jaDur:0,clDur:0,coDur:0};
-async function save(){ if(typeof VS!=='undefined'&&VS.on) return;  // không lưu khi đang đấu
+async function save(){ if(typeof VS!=='undefined'&&(VS.on||SP.on)) return;  // không lưu khi đang đấu/chia màn
   try{ PG.set={m:SET.music,s:SET.sfx,k:SET.shake,h:SET.help,a:SET.adm,d:SET.diff};
   if(window.storage) await window.storage.set('adv_pg',JSON.stringify(PG)); }catch(e){} }
 async function load(){ try{ if(window.storage){ const r=await window.storage.get('adv_pg');
@@ -1241,10 +1241,14 @@ function seedGameplay(code){ const s=_seedFromCode(code);
   _gObs=_mulberry32(s); _gMob=_mulberry32((s^0x9E3779B9)>>>0); }
 function unseedGameplay(){ _gObs=_gMob=null; }
 // Gọi hàm sinh với Math.random tạm thay bằng đúng luồng gieo hạt (chỉ khi đang đấu).
-function seededObs(fn){ if(!(VS.on&&_gObs)) return fn();
-  const r=Math.random; Math.random=_gObs; try{ return fn(); } finally{ Math.random=r; } }
-function seededMob(fn){ if(!(VS.on&&_gMob)) return fn();
-  const r=Math.random; Math.random=_gMob; try{ return fn(); } finally{ Math.random=r; } }
+// Chia màn: mỗi người chơi có luồng RIÊNG (gieo cùng seed) gắn trên G._gObs/_gMob
+// → hai người cùng đường đua đồng thời. Đấu luân phiên: dùng luồng chung _gObs/_gMob.
+function seededObs(fn){ const g=SP.on?(G&&G._gObs):_gObs;
+  if(!((VS.on||SP.on)&&g)) return fn();
+  const r=Math.random; Math.random=g; try{ return fn(); } finally{ Math.random=r; } }
+function seededMob(fn){ const g=SP.on?(G&&G._gMob):_gMob;
+  if(!((VS.on||SP.on)&&g)) return fn();
+  const r=Math.random; Math.random=g; try{ return fn(); } finally{ Math.random=r; } }
 
 const VS={on:false,code:'',si:0,pickSi:0,turn:0,res:[null,null],snap:null};
 function vsRandCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='';
@@ -1273,7 +1277,11 @@ function vsRenderSetup(){
   const inc=vsBtn('▶','ghost',()=>{ VS.pickSi=Math.min(maxSi(),VS.pickSi+1); paint(); });
   dec.style.minWidth=inc.style.minWidth='52px'; paint();
   row.appendChild(dec); row.appendChild(lbl); row.appendChild(inc); c.appendChild(row);
-  c.appendChild(vsBtn('⚔️ Bắt đầu đấu','big',vsStart));
+  c.appendChild(vsBtn('⚔️ Luân phiên (1 người 1 lượt)','big',vsStart));
+  c.appendChild(vsBtn('🖥️ Chia đôi màn (2 người cùng lúc)','big',()=>startSplit(VS.pickSi)));
+  const hint=document.createElement('p'); hint.style.cssText='font-size:.72rem;opacity:.75;margin:2px 0';
+  hint.innerHTML='Chia màn — P1: phím mũi tên + ⇧phải/“/” đánh · P2: W A S D + F/⇧trái đánh (hoặc tay cầm)';
+  c.appendChild(hint);
   c.appendChild(vsBtn('← Quay lại','ghost',()=>{ refreshMap(); show('mapScr'); scr='map'; }));
   vsGo();
 }
@@ -1334,6 +1342,95 @@ function vsAbort(){
   VS.on=false; unseedGameplay();
   if(VS.snap) Object.assign(PG, JSON.parse(VS.snap));
   refreshMap(); show('mapScr'); scr='map';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CHIA ĐÔI MÀN — 2 người 1 máy, CÙNG LÚC, cùng cửa (cùng seed).
+   Tái dùng nguyên engine: mỗi khung chạy update() 2 lần bằng cách HOÁN ĐỔI biến
+   toàn cục G (g1/g2), rồi vẽ mỗi người vào một nửa màn (trên/dưới).
+   Phím: Người 1 = mũi tên (↑nhảy ↓ngồi ◀▶ đi) + ⇧phải/'/'  đánh;
+         Người 2 = W A S D (W nhảy S ngồi A/D đi) + F/⇧trái đánh.  (Người 2 cũng có thể tay cầm)
+   ════════════════════════════════════════════════════════════════ */
+const SP={on:false,code:'',si:0,g1:null,g2:null,res:[null,null],snap:null};
+function spSeedPlayer(g,code){ const s=_seedFromCode(code);
+  g._gObs=_mulberry32(s); g._gMob=_mulberry32((s^0x9E3779B9)>>>0); }
+function startSplit(si){
+  SP.on=true; SP.code=vsRandCode(); SP.si=si; SP.res=[null,null]; SP.snap=JSON.stringify(PG);
+  Object.assign(PG, JSON.parse(SP.snap)); startStage(si); SP.g1=G; SP.g1.done=0; spSeedPlayer(SP.g1,SP.code);
+  Object.assign(PG, JSON.parse(SP.snap)); startStage(si); SP.g2=G; SP.g2.done=0; spSeedPlayer(SP.g2,SP.code);
+  G=SP.g1; scr='play'; hideAll(); last=0;
+}
+function dualSim(dt){
+  if(!SP.g1.done){ G=SP.g1; update(dt); }
+  if(SP.on&&!SP.g2.done){ G=SP.g2; update(dt); }   // SP.on: g1 có thể vừa kết thúc trận
+}
+function drawSplitHalf(g,idx){
+  G=g; KX=g.kx;
+  ctx.setTransform(RS,0,0,RS,0,0);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,idx*(H/2),W,H/2); ctx.clip();
+  ctx.setTransform(RS,0,0,RS/2,0,idx*(H/2)*RS);      // ép cả thế giới vào nửa màn (dẹt chiều dọc)
+  drawWorld();
+  ctx.restore();
+}
+function drawSplitHud(idx){
+  const g=idx===0?SP.g1:SP.g2, s=ST[SP.si], yTop=idx*(H/2);
+  ctx.setTransform(RS,0,0,RS,0,0); ctx.save(); ctx.textBaseline='top';
+  ctx.fillStyle=idx===0?'#3FA9FF':'#FF5A6E'; ctx.font='900 20px Segoe UI, system-ui, sans-serif';
+  const hs='❤'.repeat(Math.max(0,g.hearts))+'🤍'.repeat(Math.max(0,g.maxH-g.hearts));
+  ctx.fillText((idx===0?'P1  ':'P2  ')+hs, 14, yTop+8);
+  ctx.font='800 15px Segoe UI, system-ui, sans-serif'; ctx.fillStyle=skin===1?'#fff':'#22306E';
+  ctx.fillText((s.boss?'TRÙM':Math.floor(g.dist)+'m/'+s.goal+'m')+(g.done?'   ✓ XONG':''), 14, yTop+34);
+  ctx.restore();
+}
+function drawSplit(){
+  ctx.setTransform(RS,0,0,RS,0,0); ctx.clearRect(0,0,W,H);
+  const sv=G, sk=KX;
+  drawSplitHalf(SP.g1,0);
+  drawSplitHalf(SP.g2,1);
+  ctx.setTransform(RS,0,0,RS,0,0);
+  ctx.fillStyle='#0c1424'; ctx.fillRect(0,H/2-2,W,4);   // vạch chia giữa
+  drawSplitHud(0); drawSplitHud(1);
+  G=sv; KX=sk;
+}
+function splitEnd(win,fell){                            // endStage gọi khi 1 người kết thúc
+  const pl=(G===SP.g1)?0:1;
+  SP.res[pl]={ win:!!win, dist:Math.floor(G.dist), coins:G.coins,
+    time:Math.round(G.t*10)/10, score:G.score, fell:!!fell };
+  G.done=1;
+  if(SP.g1.done&&SP.g2.done){ SP.on=false; Object.assign(PG, JSON.parse(SP.snap)); splitResult(); }
+}
+function splitResult(){
+  const c=vsCard(); const a=SP.res[0], b=SP.res[1], w=vsCmp(a,b);
+  const h=document.createElement('h2'); h.textContent='🏁 Kết quả chia màn'; c.appendChild(h);
+  const win=document.createElement('div'); win.style.cssText='font-size:1.4rem;font-weight:900;margin:6px';
+  win.textContent = w>0?'🔵 Người 1 THẮNG!' : w<0?'🔴 Người 2 THẮNG!' : '🤝 Hoà!';
+  c.appendChild(win);
+  const line=r=>(r.win?'🏆 Qua cửa':'Đi được '+r.dist+'m')+' • ⏱ '+r.time+'s • 🪙'+r.coins;
+  const p=document.createElement('p');
+  p.innerHTML='🔵 <b>Người 1:</b> '+line(a)+'<br>🔴 <b>Người 2:</b> '+line(b); c.appendChild(p);
+  c.appendChild(vsBtn('🔁 Chơi lại cửa này','big',()=>startSplit(SP.si)));
+  c.appendChild(vsBtn('⚔️ Trận mới','ghost',vsOpen));
+  c.appendChild(vsBtn('🗺️ Về bản đồ','ghost',splitAbort));
+  vsGo();
+}
+function splitAbort(){
+  SP.on=false; if(SP.snap) Object.assign(PG, JSON.parse(SP.snap));
+  refreshMap(); show('mapScr'); scr='map';
+}
+// Định tuyến phím cho 2 người (chỉ khi đang chia màn).
+const SP_KEYS={ ArrowLeft:[1,'L'],ArrowRight:[1,'R'],ArrowUp:[1,'J'],ArrowDown:[1,'D'],
+  Slash:[1,'A'],ShiftRight:[1,'A'],
+  KeyA:[2,'L'],KeyD:[2,'R'],KeyW:[2,'J'],KeyS:[2,'D'],KeyF:[2,'A'],ShiftLeft:[2,'A'] };
+function splitKey(code,down,repeat){
+  const m=SP_KEYS[code]; if(!m) return false;
+  const g=(m[0]===1?SP.g1:SP.g2), act=m[1];
+  if(g&&!g.done){ const s=G; G=g;
+    if(act==='J'){ if(down){ repeat?(G.hold=true):jump(); } else release(); }  // giữ để nhảy cao
+    else if(act==='A'){ if(down&&!repeat) attack(); }
+    else setMove(act,down?1:0);
+    G=s; }
+  return true;
 }
 
 function startStage(si,resume){
@@ -1496,6 +1593,8 @@ function inMap(list,c){ return list.indexOf(c)>=0; }
 document.addEventListener('keydown',e=>{
   if(e.repeat && !inMap(KEYMAP.jump,e.code)) { /* giữ phím: chỉ nhảy cần lặp */ }
   const c=e.code;
+  if(SP.on){ if(inMap(KEYMAP.pause,c)){ e.preventDefault(); splitAbort(); return; }
+    if(splitKey(c,true,e.repeat)) e.preventDefault(); return; }   // chia màn: định tuyến 2 người
   if(inMap(KEYMAP.pause,c)){ e.preventDefault();
     if(scr==='play') pauseGame(); else if(scr==='pause') resumeGame(); return; }
   if(inMap(KEYMAP.mute,c)){ e.preventDefault();
@@ -1522,6 +1621,7 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('keyup',e=>{
   const c=e.code;
+  if(SP.on){ splitKey(c,false,false); return; }
   if(inMap(KEYMAP.jump,c)) release();
   else if(inMap(KEYMAP.left,c)) setMove('L',0);
   else if(inMap(KEYMAP.right,c)) setMove('R',0);
@@ -2393,6 +2493,7 @@ function update(dt){
 
 function endStage(win,fell){
   if(VS.on){ vsCapture(win,fell); return; }        // đang đấu → sang luồng so kết quả
+  if(SP.on){ splitEnd(win,fell); return; }         // đang chia màn → đánh dấu người này xong
   const s=ST[G.si];
   scr='result'; PG.run=null;
   const bonus=win?s.coin:Math.floor(s.coin*0.4);
@@ -5358,9 +5459,7 @@ function drawHUD(){
 }
 
 /* ============ VÒNG LẶP ============ */
-function draw(){
-  ctx.setTransform(RS,0,0,RS,0,0);
-  ctx.clearRect(0,0,W,H);
+function drawWorld(){
   ctx.save();
   if(G&&G.shake>0&&SET.shake)ctx.translate(rnd(-6,6),rnd(-4,4));
   drawScene();
@@ -5468,41 +5567,94 @@ function draw(){
     ctx.globalAlpha=1;
   }
   ctx.restore();
+}
+function draw(){
+  if(SP.on){ drawSplit(); return; }
+  ctx.setTransform(RS,0,0,RS,0,0);
+  ctx.clearRect(0,0,W,H);
+  drawWorld();
   if(scr==='play'||scr==='pause') drawHUD();
 }
-/* ═══ TAY CẦM (Gamepad API) — chơi bằng tay cầm USB, không thêm thư viện ═══
-   Điều khiển trong màn chơi gọi thẳng jump/attack/setMove (cần mượt, không mượn phím).
-   Menu/tạm dừng/chơi lại: bắn keydown tổng hợp để tái dùng đúng luồng phím có sẵn.
-   ponytail: theo "standard mapping". Tay cầm lạ chỉ số nút có thể khác — nút trên
-   màn hình vẫn còn; nếu cần map lại thì sửa đúng các chỉ số b[...] bên dưới. */
+/* ═══ TAY CẦM (Gamepad API) — chơi + duyệt menu bằng tay cầm, không thêm thư viện ═══
+   TRONG MÀN CHƠI: D-pad/cần đi·ngồi · ✕/◯ nhảy · ▢/△ đánh · Start tạm dừng · Select chơi lại.
+   TRONG MENU (bản đồ/cửa hàng/cài đặt/kết quả/tạm dừng): D-pad di CON TRỎ giữa các nút đang
+   hiện · ✕ chọn · ◯ quay lại · △ mở cài đặt. Không viết lại logic menu — chỉ dời focus và
+   gọi .click() của nút có sẵn, nên mọi màn nút-DOM đều dùng được.
+   ponytail: theo "standard mapping"; tay cầm lạ khác chỉ số nút → sửa các b[...] bên dưới. */
 const padPrev={}, padHeld={L:0,R:0,D:0};
 const padOn=b=>!!(b&&b.pressed);
 const keyTap=code=>document.dispatchEvent(new KeyboardEvent('keydown',{code}));
-function pollPad(){
-  const pads=navigator.getGamepads?navigator.getGamepads():[];
-  let gp=null; for(const p of pads) if(p){ gp=p; break; }
-  if(!gp) return;
-  const b=gp.buttons, ax=gp.axes, X=ax[0]||0, Y=ax[1]||0, DZ=.35;
-  const L=padOn(b[14])||X<-DZ, R=padOn(b[15])||X>DZ, D=padOn(b[13])||Y>DZ;
-  if(L!==!!padHeld.L){ padHeld.L=L?1:0; setMove('L',padHeld.L); }
-  if(R!==!!padHeld.R){ padHeld.R=R?1:0; setMove('R',padHeld.R); }
-  if(D!==!!padHeld.D){ padHeld.D=D?1:0; setMove('D',padHeld.D); }
-  const jb=padOn(b[0])||padOn(b[1]);            // ✕ / ◯ = nhảy (giữ để nhảy cao)
-  if(jb&&!padPrev.j){ if(scr==='play') jump(); else keyTap('Enter'); }
-  if(!jb&&padPrev.j) release();
-  padPrev.j=jb;
-  const ab=padOn(b[2])||padOn(b[3]);            // ▢ / △ = đánh
-  if(ab&&!padPrev.a) attack();
-  padPrev.a=ab;
-  const st=padOn(b[9]); if(st&&!padPrev.s) keyTap('Escape'); padPrev.s=st;  // Start = tạm dừng
-  const se=padOn(b[8]); if(se&&!padPrev.e) keyTap('KeyR');  padPrev.e=se;   // Select = chơi lại cửa
+// Các nút đang bấm được trên màn menu đang hiển thị (bỏ nút ẩn/khoá).
+function padScreenBtns(){
+  const el=SCRS.map(id=>document.getElementById(id)).find(e=>e&&!e.classList.contains('hide'));
+  return el?[...el.querySelectorAll('button')].filter(b=>b.offsetParent&&!b.disabled):[];
 }
+// Dời con trỏ theo hình học: chọn nút gần nhất về hướng bấm (ưu tiên cùng hàng/cột).
+function padFocusMove(dir){
+  const btns=padScreenBtns(); if(!btns.length) return;
+  const cur=document.activeElement;
+  if(!btns.includes(cur)){ btns[0].focus(); return; }
+  const r=cur.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+  let best=null, bd=1e9;
+  for(const q of btns){ if(q===cur) continue;
+    const t=q.getBoundingClientRect(), dx=t.left+t.width/2-cx, dy=t.top+t.height/2-cy;
+    let a,p;
+    if(dir==='L'){ if(dx>-4)continue; a=-dx; p=Math.abs(dy); }
+    else if(dir==='R'){ if(dx<4)continue; a=dx; p=Math.abs(dy); }
+    else if(dir==='U'){ if(dy>-4)continue; a=-dy; p=Math.abs(dx); }
+    else { if(dy<4)continue; a=dy; p=Math.abs(dx); }
+    const s=a+p*2; if(s<bd){ bd=s; best=q; }
+  }
+  (best||btns[0]).focus();
+}
+function padBack(){
+  for(const id of ['backBtn','setBackBtn']){ const e=document.getElementById(id);
+    if(e&&e.offsetParent){ e.click(); return; } }
+  if(scr==='pause') resumeGame();
+}
+function pollPad(){
+  const gp=(navigator.getGamepads?navigator.getGamepads():[]).find(p=>p); if(!gp) return;
+  const ae=document.activeElement;                     // đang gõ chữ (ô lưu tên…) → nhường bàn phím
+  if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  const b=gp.buttons, ax=gp.axes, X=ax[0]||0, Y=ax[1]||0, DZ=.4, P=padPrev;
+  const jb=padOn(b[0])||padOn(b[3])||padOn(b[12]), abb=padOn(b[1])||padOn(b[2]); // ✕/△/D-pad↑ nhảy · ◯/▢ đánh
+  const dir={L:padOn(b[14])||X<-DZ, R:padOn(b[15])||X>DZ, U:padOn(b[12])||Y<-DZ, D:padOn(b[13])||Y>DZ};
+  if(scr==='play'){
+    const _spSwap=SP.on&&SP.g2&&!SP.g2.done, _svG=G; if(_spSwap)G=SP.g2;  // chia màn: tay cầm = Người 2
+    if(dir.L!==!!padHeld.L){ padHeld.L=dir.L?1:0; setMove('L',padHeld.L); }
+    if(dir.R!==!!padHeld.R){ padHeld.R=dir.R?1:0; setMove('R',padHeld.R); }
+    if(dir.D!==!!padHeld.D){ padHeld.D=dir.D?1:0; setMove('D',padHeld.D); }
+    if(jb&&!P.jb) jump();  if(!jb&&P.jb) release();     // ✕/◯ nhảy (giữ để nhảy cao)
+    if(abb&&!P.ab) attack();                            // ▢/△ đánh
+    if(_spSwap)G=_svG;
+    if(padOn(b[9])&&!P.start) keyTap('Escape');         // Start tạm dừng
+    if(padOn(b[8])&&!P.sel)   keyTap('KeyR');           // Select chơi lại
+  } else {                                              // ── đang ở menu ──
+    if(padHeld.L||padHeld.R||padHeld.D){ setMove('L',0);setMove('R',0);setMove('D',0); padHeld.L=padHeld.R=padHeld.D=0; }
+    if(dir.L&&!P.dL) padFocusMove('L');  if(dir.R&&!P.dR) padFocusMove('R');
+    if(dir.U&&!P.dU) padFocusMove('U');  if(dir.D&&!P.dD) padFocusMove('D');
+    if(padOn(b[0])&&!P.b0){ const btns=padScreenBtns(), cur=document.activeElement;   // ✕ chọn
+      btns.includes(cur)?cur.click():(btns[0]&&btns[0].focus()); }
+    if(padOn(b[1])&&!P.b1) padBack();                   // ◯ quay lại
+    if(padOn(b[3])&&!P.b3){ const s=document.getElementById('setBtn');                // △ mở cài đặt
+      if(s&&s.offsetParent&&scr!=='set') s.click(); }
+  }
+  P.jb=jb; P.ab=abb; P.b0=padOn(b[0]); P.b1=padOn(b[1]); P.b3=padOn(b[3]);
+  P.start=padOn(b[9]); P.sel=padOn(b[8]);
+  P.dL=dir.L; P.dR=dir.R; P.dU=dir.U; P.dD=dir.D;
+}
+// Vòng sáng cho nút đang chọn bằng tay cầm — để bé thấy con trỏ.
+if(document.head) document.head.insertAdjacentHTML('beforeend','<style>'
+  +'#mapScr button:focus,#shopScr button:focus,#resScr button:focus,'
+  +'#pauseScr button:focus,#setScr button:focus,#vsScr button:focus'
+  +'{outline:4px solid #ffcc00;outline-offset:2px}</style>');
 let last=0;
 function loop(ts){
   let dt=Math.min(.033,last?(ts-last)/1000:.016); last=ts;
-  if(VS.on) dt=1/60;                                // đấu: nhịp cố định → hai lượt sinh giống hệt
+  if(VS.on||SP.on) dt=1/60;                          // đấu/chia màn: nhịp cố định → sinh giống hệt
   pollPad();
-  if(scr==='play'&&G) update(dt);
+  if(SP.on){ dualSim(dt); }                          // chia màn: chạy cả hai người
+  else if(scr==='play'&&G) update(dt);
   else if(scr!=='pause'){ demoX+=60*dt; if(G) G.worldX=demoX; }
   draw(); requestAnimationFrame(loop);
 }
