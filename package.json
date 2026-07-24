@@ -1,0 +1,25 @@
+{
+  "name": "be-phieu-luu",
+  "version": "0.1.0",
+  "description": "Bé Phiêu Lưu — game chạy vượt chướng ngại 2D, HTML5 Canvas thuần",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node -e \"require('fs').renameSync('dist/index.html','dist/game.html')\"",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "check:hud": "node tools/hud-check.mjs",
+    "check:balance": "node tools/balance.mjs",
+    "check:all": "vitest run && node tools/hud-check.mjs && node tools/balance.mjs",
+    "lint": "eslint . && prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.3",
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.0.3",
+    "vitest": "^2.1.0"
+  }
+}
