@@ -6,6 +6,13 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ## [Chưa phát hành]
 
+### Added
+
+- **Lưu tiến trình tiện hơn** (trong `legacy/`): thêm **ô lưu đặt tên** trong máy
+  (localStorage — nạp/xoá không cần mã) và **xuất/nhập bằng TỆP** (tải tệp `.txt` về máy /
+  chọn tệp để nhập). Vẫn giữ ô dán mã `BPL1` cũ để tương thích ngược. Định dạng mã không đổi.
+  Kiểm chứng bằng `tests/save-ux.test.js`.
+
 ## [0.1.0] — 2026-07-24
 
 Dựng lại dự án từ bản HTML một-tệp (`legacy/`) thành kiến trúc module hoá,

@@ -23,6 +23,7 @@ export async function createHarness(htmlPath, opts = {}) {
   const audioErrors = [];
   const drawCalls = { fill: 0, stroke: 0, text: 0 };
   let now = 0;
+  let lastBlob = null; // nội dung tệp lưu gần nhất (cho test saveToFile)
 
   // ── Canvas giả ──────────────────────────────────────────────
   const grad = { addColorStop: noop };
@@ -97,8 +98,11 @@ export async function createHarness(htmlPath, opts = {}) {
       closest: () => null,
       querySelectorAll: () => [],
       onclick: null,
+      onchange: null,
+      files: null,
       focus: noop,
       select: noop,
+      click: noop,
     };
     Object.defineProperty(e, 'innerHTML', {
       get() {
@@ -131,6 +135,29 @@ export async function createHarness(htmlPath, opts = {}) {
       return e;
     },
     addEventListener: noop,
+  };
+  globalThis.document.body = El('body');
+
+  // localStorage giả (cho ô lưu đặt tên) + Blob/URL/FileReader (cho xuất/nhập tệp)
+  globalThis.localStorage = (() => {
+    const m = new Map();
+    return {
+      getItem: (k) => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => m.set(k, String(v)),
+      removeItem: (k) => m.delete(k),
+      clear: () => m.clear(),
+    };
+  })();
+  globalThis.Blob = function (parts) {
+    this.parts = parts;
+    lastBlob = String((parts && parts[0]) || '');
+  };
+  globalThis.URL = { createObjectURL: () => 'blob:mock', revokeObjectURL: noop };
+  globalThis.FileReader = function () {
+    this.readAsText = (f) => {
+      this.result = (f && f._text) || '';
+      if (this.onload) this.onload();
+    };
   };
 
   // ── Web Audio giả, kiểm tra nghiêm ─────────────────────────
@@ -192,6 +219,7 @@ export async function createHarness(htmlPath, opts = {}) {
   code = code.replace(
     '(async function init(){',
     'globalThis.__G={startStage,jump,attack,setMove,release,endStage,exportSave,importSave,' +
+      'slotAdd,slotsLoad,slotDel,saveToFile,loadFromFile,' +
       'get skin(){return skin;},setSkin(s){skin=s;if(typeof applySkin==="function")applySkin();},' +
       'get G(){return G;},PG,SET,ADM,ST,get scr(){return scr;}};\n(async function init(){',
   );
@@ -224,6 +252,7 @@ export async function createHarness(htmlPath, opts = {}) {
     screen: () => T.scr,
     stages: () => T.ST,
     audioErrors: () => audioErrors.slice(),
+    lastSaveBlob: () => lastBlob,
     drawCalls: () => ({ ...drawCalls }),
     resetAudioErrors() {
       audioErrors.length = 0;
