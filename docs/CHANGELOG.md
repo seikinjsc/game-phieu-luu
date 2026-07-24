@@ -6,6 +6,12 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ## [Chưa phát hành]
 
+### Changed
+
+- **`npm run build` đóng gói bản CHƠI ĐƯỢC** (`legacy/`) thành `dist/game.html` (nhúng
+  phiên bản vào tiêu đề) để deploy lên GitHub Pages ngay. Build Vite của bản module dời
+  sang `npm run build:app` (dùng khi hoàn tất tích hợp `src/`).
+
 ### Added
 
 - **Lưu tiến trình tiện hơn** (trong `legacy/`): thêm **ô lưu đặt tên** trong máy
