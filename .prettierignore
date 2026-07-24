@@ -2,5 +2,6 @@ dist
 legacy
 node_modules
 
-# Tài liệu do người viết định dạng thủ công — Prettier không đụng vào.
+# Tài liệu & trang HTML viết tay — Prettier không đụng vào.
 *.md
+*.html

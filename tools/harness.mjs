@@ -219,7 +219,8 @@ export async function createHarness(htmlPath, opts = {}) {
   code = code.replace(
     '(async function init(){',
     'globalThis.__G={startStage,jump,attack,setMove,release,endStage,exportSave,importSave,' +
-      'slotAdd,slotsLoad,slotDel,saveToFile,loadFromFile,' +
+      'slotAdd,slotsLoad,slotDel,saveToFile,loadFromFile,VS,seedGameplay,unseedGameplay,' +
+      'vsStart,vsBeginRun,' +
       'get skin(){return skin;},setSkin(s){skin=s;if(typeof applySkin==="function")applySkin();},' +
       'get G(){return G;},PG,SET,ADM,ST,get scr(){return scr;}};\n(async function init(){',
   );

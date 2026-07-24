@@ -8,6 +8,12 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ### Added
 
+- **Chế độ Đấu 2 người (luân phiên cùng máy)** — nút "⚔️ Đấu 2 người" ở màn bản đồ:
+  chọn cửa → Người 1 chơi → Người 2 chơi **CÙNG cửa, CÙNG mã đua (seed)** → so bảng kết quả
+  (qua cửa / xa hơn / nhanh hơn / nhiều xu). Công bằng: luồng ngẫu nhiên vật cản tách riêng +
+  dt cố định nên hai người gặp **cùng đường đua bất kể cách chơi**. **Không đụng tiến trình
+  thật** (xu/mở khoá/độ bền giữ nguyên; `save()` khoá trong lúc đấu). Kiểm chứng bằng
+  `tests/versus.test.js` (công bằng + không làm hỏng tiến trình).
 - **Nền tảng chế độ thi đấu — RNG gieo hạt** (`src/core/rng.js`): bộ ngẫu nhiên tất định
   (mulberry32 + băm seed từ chuỗi). Kèm **proof-of-concept** (`tests/seeded-stage.test.js`)
   chứng minh trên chính game: **cùng seed → màn chơi y hệt** (bố trí vật cản/quái) ở nhiều
