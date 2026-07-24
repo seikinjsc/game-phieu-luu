@@ -25,6 +25,7 @@
   <span style="flex:1"></span>
   <button id="add" class="g">＋ Thêm người</button>
   <button id="rm" class="g">－ Bớt</button>
+  <button id="fs">⛶ Toàn màn hình</button>
   <button id="exit" class="g">← Thoát</button>
 </div>
 <div id="grid"></div>
@@ -50,6 +51,12 @@
   }
   add.onclick  = () => { if(n < 4){ n++; layout(); } };
   rm.onclick   = () => { if(n > 1){ n--; layout(); } };
+  document.getElementById('fs').onclick = () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement)
+      (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
+    else (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el);
+  };
   document.getElementById('exit').onclick = () => { location.href = 'game.html'; };
   layout();
 </script>
