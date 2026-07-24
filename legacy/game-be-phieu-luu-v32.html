@@ -302,7 +302,10 @@ const W=900,H=500,GY=408,HZ=GY-18,KW=32,KH=76;
 // RS = ĐỘ NÉT (điểm-ảnh thật = logic × RS). KHÔNG phải kích thước logic → hạ RS
 // không đụng GY/KX/cân bằng, chỉ bớt nét một chút. Máy yếu giật/lag thì hạ RS để
 // giảm số điểm ảnh phải vẽ mỗi khung: 1.5→1.25 giảm ~30% tải · 1.5→1.0 giảm ~55%.
-const RS=1.25; cv.width=W*RS; cv.height=H*RS;
+// Trong iframe "2 người song song" (?p=…) có 2–4 game cùng chạy, mỗi khung chỉ hiện
+// ~nửa/¼ màn hình → dùng RS thấp hơn để không giật; chơi 1 người vẫn giữ nét.
+const _multi=(()=>{ try{ return !!new URLSearchParams(location.search).get('p'); }catch(e){ return false; } })();
+const RS=_multi?0.9:1.25; cv.width=W*RS; cv.height=H*RS;
 let KX=180;
 let skin=0, scr='map', G=null, demoX=0, prevScr='map';
 let mapTab=null, shopTab=null, shopFrom='map';
