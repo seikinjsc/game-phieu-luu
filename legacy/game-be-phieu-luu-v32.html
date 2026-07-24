@@ -1366,12 +1366,18 @@ function dualSim(dt){
 }
 function drawSplitHalf(g,idx){
   G=g; KX=g.kx;
-  const tgt=Math.max(0,Math.min(250, g.kid.y-130));   // camera bám nhân vật (cửa sổ cao 250, không méo)
-  g._camY = g._camY===undefined ? tgt : g._camY+(tgt-g._camY)*0.18;
+  // Camera "VÙNG CHẾT": cửa sổ cao 250, giữ nhân vật trong [cam+12, cam+238].
+  // Ở cửa mặt đất nhân vật (nhảy cao nhất ~192, đất 408) luôn nằm trong vùng → khung nhìn
+  // ĐỨNG YÊN, không giật khi nhảy. Chỉ dịch khi lên rất cao (biển/vũ trụ). Không méo hình.
+  if(g._camY===undefined) g._camY=175;
+  const y=g.kid.y;
+  if(y < g._camY+12) g._camY=y-12;
+  else if(y > g._camY+238) g._camY=y-238;
+  g._camY=Math.max(0,Math.min(250,g._camY));
   ctx.setTransform(RS,0,0,RS,0,0);
   ctx.save();
   ctx.beginPath(); ctx.rect(0,idx*(H/2),W,H/2); ctx.clip();
-  ctx.setTransform(RS,0,0,RS,0,(idx*(H/2)-g._camY)*RS);   // cắt cửa sổ + bám nhân vật — KHÔNG ép dẹt
+  ctx.setTransform(RS,0,0,RS,0,(idx*(H/2)-g._camY)*RS);   // cắt cửa sổ (không dẹt), camera vùng chết
   drawWorld();
   ctx.restore();
 }
@@ -1402,7 +1408,7 @@ function splitEnd(win,fell){                            // endStage gọi khi 1 
   const pl=(G===SP.g1)?0:1;
   SP.res[pl]={ win:!!win, dist:Math.floor(G.dist), coins:G.coins,
     time:Math.round(G.t*10)/10, score:G.score, fell:!!fell };
-  G.done=1;
+  G.done=1; G.shake=0;                                  // tắt rung để nửa đã XONG không giật mãi
   if(SP.g1.done&&SP.g2.done){ SP.on=false; Object.assign(PG, JSON.parse(SP.snap)); splitResult(); }
 }
 function splitResult(){
