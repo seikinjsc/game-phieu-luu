@@ -299,7 +299,10 @@
 (function(){
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const W=900,H=500,GY=408,HZ=GY-18,KW=32,KH=76;
-const RS=1.5; cv.width=W*RS; cv.height=H*RS;
+// RS = ĐỘ NÉT (điểm-ảnh thật = logic × RS). KHÔNG phải kích thước logic → hạ RS
+// không đụng GY/KX/cân bằng, chỉ bớt nét một chút. Máy yếu giật/lag thì hạ RS để
+// giảm số điểm ảnh phải vẽ mỗi khung: 1.5→1.25 giảm ~30% tải · 1.5→1.0 giảm ~55%.
+const RS=1.25; cv.width=W*RS; cv.height=H*RS;
 let KX=180;
 let skin=0, scr='map', G=null, demoX=0, prevScr='map';
 let mapTab=null, shopTab=null, shopFrom='map';
@@ -5622,6 +5625,13 @@ function draw(){
   ctx.clearRect(0,0,W,H);
   drawWorld();
   if(scr==='play'||scr==='pause') drawHUD();
+  if(SHOWFPS) drawFps();
+}
+// Đồng hồ FPS góc trái — bật/tắt bằng phím ` (backtick). Chỉ để đo, không ảnh hưởng game.
+function drawFps(){
+  ctx.setTransform(RS,0,0,RS,0,0); ctx.font='bold 15px system-ui'; ctx.textBaseline='top';
+  const s=_fps+' FPS'; ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(6,6,ctx.measureText(s).width+12,22);
+  ctx.fillStyle=_fps<50?'#ff6b6b':'#7CFC7C'; ctx.fillText(s,12,9);
 }
 /* ═══ TAY CẦM (Gamepad API) — chơi + duyệt menu bằng tay cầm, không thêm thư viện ═══
    TRONG MÀN CHƠI: D-pad/cần đi·ngồi · ✕/◯ nhảy · ▢/△ đánh · Start tạm dừng · Select chơi lại.
@@ -5697,9 +5707,11 @@ if(document.head) document.head.insertAdjacentHTML('beforeend','<style>'
   +'#mapScr button:focus,#shopScr button:focus,#resScr button:focus,'
   +'#pauseScr button:focus,#setScr button:focus,#vsScr button:focus'
   +'{outline:4px solid #ffcc00;outline-offset:2px}</style>');
-let last=0;
+let last=0,_fpsT=0,_fpsN=0,_fps=0,SHOWFPS=0;
+if(typeof addEventListener!=='undefined') addEventListener('keydown',e=>{ if(e.code==='Backquote'){ SHOWFPS^=1; e.preventDefault(); } }); // ` bật/tắt FPS (guard: harness headless không có DOM)
 function loop(ts){
   let dt=Math.min(.033,last?(ts-last)/1000:.016); last=ts;
+  _fpsN++; if(ts-_fpsT>=500){ _fps=Math.round(_fpsN*1000/(ts-_fpsT)); _fpsT=ts; _fpsN=0; } // FPS thật (không theo dt đã kẹp)
   if(VS.on||SP.on) dt=1/60;                          // đấu/chia màn: nhịp cố định → sinh giống hệt
   pollPad();
   if(SP.on){ dualSim(dt); }                          // chia màn: chạy cả hai người
