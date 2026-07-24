@@ -1366,22 +1366,27 @@ function dualSim(dt){
 }
 function drawSplitHalf(g,idx){
   G=g; KX=g.kx;
+  const tgt=Math.max(0,Math.min(250, g.kid.y-130));   // camera bám nhân vật (cửa sổ cao 250, không méo)
+  g._camY = g._camY===undefined ? tgt : g._camY+(tgt-g._camY)*0.18;
   ctx.setTransform(RS,0,0,RS,0,0);
   ctx.save();
   ctx.beginPath(); ctx.rect(0,idx*(H/2),W,H/2); ctx.clip();
-  ctx.setTransform(RS,0,0,RS/2,0,idx*(H/2)*RS);      // ép cả thế giới vào nửa màn (dẹt chiều dọc)
+  ctx.setTransform(RS,0,0,RS,0,(idx*(H/2)-g._camY)*RS);   // cắt cửa sổ + bám nhân vật — KHÔNG ép dẹt
   drawWorld();
   ctx.restore();
 }
 function drawSplitHud(idx){
   const g=idx===0?SP.g1:SP.g2, s=ST[SP.si], yTop=idx*(H/2);
   ctx.setTransform(RS,0,0,RS,0,0); ctx.save(); ctx.textBaseline='top';
-  ctx.fillStyle=idx===0?'#3FA9FF':'#FF5A6E'; ctx.font='900 20px Segoe UI, system-ui, sans-serif';
+  if(g.done){ ctx.fillStyle='rgba(8,14,28,.5)'; ctx.fillRect(0,yTop,W,H/2); }   // mờ nửa đã xong
+  ctx.fillStyle=idx===0?'#3FA9FF':'#FF5A6E'; ctx.font='900 19px Segoe UI, system-ui, sans-serif';
   const hs='❤'.repeat(Math.max(0,g.hearts))+'🤍'.repeat(Math.max(0,g.maxH-g.hearts));
   ctx.fillText((idx===0?'P1  ':'P2  ')+hs, 14, yTop+8);
-  ctx.font='800 15px Segoe UI, system-ui, sans-serif'; ctx.fillStyle=skin===1?'#fff':'#22306E';
-  ctx.fillText((s.boss?'TRÙM':Math.floor(g.dist)+'m/'+s.goal+'m')+(g.done?'   ✓ XONG':''), 14, yTop+34);
-  ctx.restore();
+  ctx.font='800 13px Segoe UI, system-ui, sans-serif'; ctx.fillStyle=skin===1?'#fff':'#22306E';
+  ctx.fillText(idx===0?'⌨️ Mũi tên + ⇧/  đánh':'⌨️ W A S D + F  ·  🎮 tay cầm', 14, yTop+31);
+  ctx.textAlign='right';
+  ctx.fillText(g.done?'✓ XONG — chờ người kia':(s.boss?'TRÙM':Math.floor(g.dist)+'m / '+s.goal+'m'), W-14, yTop+31);
+  ctx.textAlign='left'; ctx.restore();
 }
 function drawSplit(){
   ctx.setTransform(RS,0,0,RS,0,0); ctx.clearRect(0,0,W,H);
@@ -5617,15 +5622,15 @@ function pollPad(){
   const ae=document.activeElement;                     // đang gõ chữ (ô lưu tên…) → nhường bàn phím
   if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
   const b=gp.buttons, ax=gp.axes, X=ax[0]||0, Y=ax[1]||0, DZ=.4, P=padPrev;
-  const jb=padOn(b[0])||padOn(b[3])||padOn(b[12]), abb=padOn(b[1])||padOn(b[2]); // ✕/△/D-pad↑ nhảy · ◯/▢ đánh
+  const jb=padOn(b[1])||padOn(b[3])||padOn(b[12]), abb=padOn(b[0])||padOn(b[2]); // ◯/△/D-pad↑ nhảy · ✕/▢ đánh
   const dir={L:padOn(b[14])||X<-DZ, R:padOn(b[15])||X>DZ, U:padOn(b[12])||Y<-DZ, D:padOn(b[13])||Y>DZ};
   if(scr==='play'){
     const _spSwap=SP.on&&SP.g2&&!SP.g2.done, _svG=G; if(_spSwap)G=SP.g2;  // chia màn: tay cầm = Người 2
     if(dir.L!==!!padHeld.L){ padHeld.L=dir.L?1:0; setMove('L',padHeld.L); }
     if(dir.R!==!!padHeld.R){ padHeld.R=dir.R?1:0; setMove('R',padHeld.R); }
     if(dir.D!==!!padHeld.D){ padHeld.D=dir.D?1:0; setMove('D',padHeld.D); }
-    if(jb&&!P.jb) jump();  if(!jb&&P.jb) release();     // ✕/◯ nhảy (giữ để nhảy cao)
-    if(abb&&!P.ab) attack();                            // ▢/△ đánh
+    if(jb&&!P.jb) jump();  if(!jb&&P.jb) release();     // ◯/△/D-pad↑ nhảy (giữ để nhảy cao)
+    if(abb&&!P.ab) attack();                            // ✕/▢ đánh
     if(_spSwap)G=_svG;
     if(padOn(b[9])&&!P.start) keyTap('Escape');         // Start tạm dừng
     if(padOn(b[8])&&!P.sel)   keyTap('KeyR');           // Select chơi lại
@@ -5633,9 +5638,9 @@ function pollPad(){
     if(padHeld.L||padHeld.R||padHeld.D){ setMove('L',0);setMove('R',0);setMove('D',0); padHeld.L=padHeld.R=padHeld.D=0; }
     if(dir.L&&!P.dL) padFocusMove('L');  if(dir.R&&!P.dR) padFocusMove('R');
     if(dir.U&&!P.dU) padFocusMove('U');  if(dir.D&&!P.dD) padFocusMove('D');
-    if(padOn(b[0])&&!P.b0){ const btns=padScreenBtns(), cur=document.activeElement;   // ✕ chọn
+    if(padOn(b[1])&&!P.b1){ const btns=padScreenBtns(), cur=document.activeElement;   // ◯ chọn
       btns.includes(cur)?cur.click():(btns[0]&&btns[0].focus()); }
-    if(padOn(b[1])&&!P.b1) padBack();                   // ◯ quay lại
+    if(padOn(b[0])&&!P.b0) padBack();                   // ✕ quay lại
     if(padOn(b[3])&&!P.b3){ const s=document.getElementById('setBtn');                // △ mở cài đặt
       if(s&&s.offsetParent&&scr!=='set') s.click(); }
   }
