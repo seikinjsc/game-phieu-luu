@@ -15,7 +15,9 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
   namespace theo hồ sơ (`adv_pg_<p>`, `adv_slots_<p>`) qua `localStorage` (bền trên mọi trình
   duyệt) + tương thích `window.storage`. Thêm/bớt 1–4 người. Chơi đơn không đổi.
   Khung hồ sơ **chỉ hiện MÀN GAME** (ẩn tiêu đề + nút công cụ + nút cảm ứng) lấp đầy iframe;
-  `multi.html` có nút **⛶ Toàn màn hình**. Game chính: có tay cầm thì tự ẩn nút cảm ứng cho rộng màn.
+  `multi.html` có nút **⛶ Toàn màn hình**. **Ẩn nút cảm ứng ở MỌI chế độ** trên máy tính
+  (con trỏ chuột / khi dùng bàn phím / tay cầm) — kể cả toàn màn hình; chỉ **thiết bị cảm ứng**
+  mới hiện nút. Toàn màn hình khi ẩn nút thì màn game dùng hết chiều cao.
 - **Chia đôi màn — 2 người 1 máy, cùng lúc** (từ màn "⚔️ Đấu 2 người" → "🖥️ Chia đôi màn"):
   hai người chạy CÙNG cửa, CÙNG seed, mỗi người một nửa màn (trên/dưới). Tái dùng nguyên
   engine bằng cách **hoán đổi biến toàn cục `G`** giữa hai trạng thái (g1/g2) mỗi khung, vẽ
