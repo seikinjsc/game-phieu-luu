@@ -13,7 +13,8 @@
     "check:hud": "node tools/hud-check.mjs",
     "check:balance": "node tools/balance.mjs",
     "check:all": "vitest run && node tools/hud-check.mjs && node tools/balance.mjs",
-    "lint": "eslint . && prettier --check ."
+    "lint": "eslint . && prettier --check .",
+    "ship": "node tools/ship.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
