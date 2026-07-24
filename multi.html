@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bé Phiêu Lưu — 2 người song song</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b1220;font-family:system-ui,Segoe UI,sans-serif;overflow:hidden}
+  #bar{height:40px;display:flex;align-items:center;gap:8px;padding:0 12px;color:#cfe;
+    background:#0f1830;box-shadow:0 2px 8px #0006;position:relative;z-index:2}
+  #bar b{color:#8fd0ff} #bar .sub{color:#7a90b5;font-size:13px}
+  button{font:inherit;font-size:14px;padding:6px 12px;border:0;border-radius:9px;background:#2b6cff;color:#fff;cursor:pointer}
+  button.g{background:#33415e} button:disabled{opacity:.4;cursor:default}
+  #grid{position:absolute;top:40px;left:0;right:0;bottom:0;display:grid;gap:4px;background:#0b1220}
+  .cell{position:relative;background:#000;overflow:hidden}
+  .cell iframe{width:100%;height:100%;border:0;display:block}
+  .cell .tag{position:absolute;top:6px;left:8px;z-index:3;background:#0009;color:#fff;
+    font-size:12px;font-weight:800;padding:3px 8px;border-radius:8px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="bar">
+  <b>🎮 2 người song song</b>
+  <span class="sub">— mỗi khung MỘT hồ sơ + MỘT tay cầm riêng (cắm đủ tay cầm rồi bấm 1 nút để nhận)</span>
+  <span style="flex:1"></span>
+  <button id="add" class="g">＋ Thêm người</button>
+  <button id="rm" class="g">－ Bớt</button>
+  <button id="exit" class="g">← Thoát</button>
+</div>
+<div id="grid"></div>
+<script>
+  let n = 2;                                  // số người chơi (2..4)
+  const grid = document.getElementById('grid');
+  const add = document.getElementById('add'), rm = document.getElementById('rm');
+  function layout(){
+    grid.innerHTML = '';
+    // 2 người: xếp trên–dưới (game ngang, hợp khung rộng); 3–4 người: lưới 2×2.
+    grid.style.gridTemplateColumns = n <= 2 ? '1fr' : '1fr 1fr';
+    grid.style.gridTemplateRows    = n <= 2 ? 'repeat(' + n + ',1fr)' : '1fr 1fr';
+    for(let i = 1; i <= n; i++){
+      const cell = document.createElement('div'); cell.className = 'cell';
+      const f = document.createElement('iframe');
+      f.src = 'game.html?p=' + i + '&pad=' + (i - 1);   // hồ sơ i, tay cầm chỉ số i-1
+      f.allow = 'gamepad; fullscreen; autoplay';
+      const tag = document.createElement('div'); tag.className = 'tag';
+      tag.textContent = 'Người ' + i + ' · 🎮 tay cầm ' + i;
+      cell.appendChild(f); cell.appendChild(tag); grid.appendChild(cell);
+    }
+    add.disabled = n >= 4; rm.disabled = n <= 1;
+  }
+  add.onclick  = () => { if(n < 4){ n++; layout(); } };
+  rm.onclick   = () => { if(n > 1){ n--; layout(); } };
+  document.getElementById('exit').onclick = () => { location.href = 'game.html'; };
+  layout();
+</script>
+</body>
+</html>

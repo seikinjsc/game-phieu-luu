@@ -8,6 +8,12 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ### Added
 
+- **2 người SONG SONG — hai game độc lập trên một máy** (nút "🎮 2 người song song" ở bản đồ →
+  trang `multi.html`): nạp game nhiều lần trong các khung `<iframe>` cạnh nhau, **mỗi khung một
+  HỒ SƠ LƯU RIÊNG** (tiến trình/xu/cửa hàng/cài đặt tách rời hoàn toàn, không phụ thuộc cửa/thời
+  điểm) + **một tay cầm riêng** (gán theo chỉ số). Game đọc URL `?p=<hồ sơ>&pad=<tay cầm>`; lưu
+  namespace theo hồ sơ (`adv_pg_<p>`, `adv_slots_<p>`) qua `localStorage` (bền trên mọi trình
+  duyệt) + tương thích `window.storage`. Thêm/bớt 1–4 người. Chơi đơn không đổi.
 - **Chia đôi màn — 2 người 1 máy, cùng lúc** (từ màn "⚔️ Đấu 2 người" → "🖥️ Chia đôi màn"):
   hai người chạy CÙNG cửa, CÙNG seed, mỗi người một nửa màn (trên/dưới). Tái dùng nguyên
   engine bằng cách **hoán đổi biến toàn cục `G`** giữa hai trạng thái (g1/g2) mỗi khung, vẽ

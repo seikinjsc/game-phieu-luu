@@ -227,6 +227,7 @@
     </div>
     <div class="row">
       <button class="big" id="versusBtn">⚔️ Đấu 2 người</button>
+      <button class="big" id="parallelBtn">🎮 2 người song song</button>
     </div>
     <p id="gearLbl"></p>
   </div>
@@ -314,6 +315,12 @@ const ADM={inv:0,o2:0,spd:1,hb:0};
    chung. Mã lưu cho phép chuyển tiến trình sang bản mới / máy khác:
    bản cũ bấm "Lấy mã" → chép chuỗi → bản mới bấm "Nhập mã".
    ════════════════════════════════════════════════════════════════ */
+// ── HỒ SƠ RIÊNG cho chế độ 2 người SONG SONG (nhúng iframe) ──
+// URL ?p=1&pad=0 → mỗi khung game một hồ sơ lưu RIÊNG (namespace) + một tay cầm RIÊNG.
+// Không có tham số = chơi đơn như cũ (hồ sơ 'adv_pg', tay cầm đầu tiên).
+const PROFILE=(()=>{ try{ return new URLSearchParams(location.search).get('p')||''; }catch(e){ return ''; } })();
+const PADIDX=(()=>{ try{ const v=new URLSearchParams(location.search).get('pad'); return v===null?null:(parseInt(v)||0); }catch(e){ return null; } })();
+const PGKEY='adv_pg'+(PROFILE?'_'+PROFILE:'');
 const SAVEVER='BPL1';
 function b64e(str){ try{ return btoa(unescape(encodeURIComponent(str))); }catch(e){ return ''; } }
 function b64d(str){ try{ return decodeURIComponent(escape(atob(str))); }catch(e){ return ''; } }
@@ -358,7 +365,7 @@ function importSave(code){
 /* ── TIỆN ÍCH LƯU: ô lưu đặt tên (trong máy) + xuất/nhập TỆP ──────────
    Bọc quanh mã BPL1 cho tiện, KHÔNG phải copy chuỗi. Định dạng mã giữ
    nguyên nên ô lưu / tệp đều tương thích với mã cũ và ngược lại. */
-const SLOTKEY='adv_slots';
+const SLOTKEY='adv_slots'+(PROFILE?'_'+PROFILE:'');
 function slotsLoad(){ try{ return JSON.parse(localStorage.getItem(SLOTKEY))||[]; }catch(e){ return []; } }
 function slotsStore(list){ try{ localStorage.setItem(SLOTKEY, JSON.stringify(list)); }catch(e){} }
 function slotAdd(name){
@@ -410,10 +417,14 @@ const PG={unlocked:1,cleared:{},coins:0,run:null,set:null,weapon:0,armor:0,boots
   gw:0,ga:0,grip:0,lamp:0,gwDur:0,gaDur:0,grDur:0,laDur:0,
   jw:0,ja:0,claw:0,coco:0,jwDur:0,jaDur:0,clDur:0,coDur:0};
 async function save(){ if(typeof VS!=='undefined'&&(VS.on||SP.on)) return;  // không lưu khi đang đấu/chia màn
-  try{ PG.set={m:SET.music,s:SET.sfx,k:SET.shake,h:SET.help,a:SET.adm,d:SET.diff};
-  if(window.storage) await window.storage.set('adv_pg',JSON.stringify(PG)); }catch(e){} }
-async function load(){ try{ if(window.storage){ const r=await window.storage.get('adv_pg');
-  if(r&&r.value) Object.assign(PG,JSON.parse(r.value)); } }catch(e){}
+  PG.set={m:SET.music,s:SET.sfx,k:SET.shake,h:SET.help,a:SET.adm,d:SET.diff};
+  const data=JSON.stringify(PG);
+  try{ localStorage.setItem(PGKEY,data); }catch(e){}                       // lưu theo hồ sơ (mọi trình duyệt)
+  try{ if(window.storage) await window.storage.set(PGKEY,data); }catch(e){} }
+async function load(){ let raw=null;
+  try{ raw=localStorage.getItem(PGKEY); }catch(e){}
+  if(!raw){ try{ if(window.storage){ const r=await window.storage.get(PGKEY); if(r&&r.value) raw=r.value; } }catch(e){} }
+  if(raw){ try{ Object.assign(PG,JSON.parse(raw)); }catch(e){} }
   if(PG.weapon>0&&!(PG.wDur>0)) PG.wDur=DUR.w[PG.weapon];
   if(PG.armor>0&&!(PG.aDur>0)) PG.aDur=DUR.a[PG.armor];
   if(PG.boots&&!(PG.bDur>0)) PG.bDur=DUR.boots;
@@ -1160,6 +1171,8 @@ document.getElementById('shopResBtn').onclick=()=>{shopFrom='res';
   if(G) shopTab=worldOf(G.si); refreshShop();show('shopScr');scr='shop';};
 document.getElementById('setFromMap').onclick=()=>openSettings('map');
 document.getElementById('versusBtn').onclick=vsOpen;
+document.getElementById('parallelBtn').onclick=()=>{ try{ location.href='multi.html'; }catch(e){} };
+if(PROFILE){ ['versusBtn','parallelBtn'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; }); }
 document.getElementById('backBtn').onclick=()=>{
   if(shopFrom==='res'){ show('resScr'); scr='result'; }
   else { refreshMap(); show('mapScr'); scr='map'; } };
@@ -5624,7 +5637,8 @@ function padBack(){
   if(scr==='pause') resumeGame();
 }
 function pollPad(){
-  const gp=(navigator.getGamepads?navigator.getGamepads():[]).find(p=>p); if(!gp) return;
+  const _pads=navigator.getGamepads?navigator.getGamepads():[];
+  const gp=(PADIDX!==null)?_pads[PADIDX]:[..._pads].find(p=>p); if(!gp) return;  // hồ sơ riêng → tay cầm riêng
   const ae=document.activeElement;                     // đang gõ chữ (ô lưu tên…) → nhường bàn phím
   if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
   const b=gp.buttons, ax=gp.axes, X=ax[0]||0, Y=ax[1]||0, DZ=.4, P=padPrev;

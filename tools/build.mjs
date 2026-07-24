@@ -17,6 +17,8 @@ const html = src.replace(
 
 mkdirSync(new URL('dist/', root), { recursive: true });
 writeFileSync(new URL('dist/game.html', root), html);
+// Trang bao chế độ 2 người song song (nhúng game.html nhiều lần, mỗi khung 1 hồ sơ + 1 tay cầm).
+writeFileSync(new URL('dist/multi.html', root), readFileSync(new URL('multi.html', root), 'utf8'));
 console.log(
   `✓ dist/game.html (v${pkg.version}, ${(html.length / 1024).toFixed(0)} KB) — mở bằng trình duyệt là chơi được.`,
 );
