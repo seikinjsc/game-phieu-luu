@@ -285,6 +285,45 @@ describe('mecung.js: điểm vào chạy được', () => {
     expect(dom.manHinh()).toContain('🪙 | 1');
   });
 
+  // Mở cửa hàng từ màn thắng rồi đóng lại thì phải VỀ ĐÚNG màn thắng, không rơi ra màn chọn
+  // — rơi ra là mất luôn bảng kê phần thưởng vừa xem dở.
+  it('CỬA HÀNG mở từ đâu thì đóng lại về đúng đó', async () => {
+    const dom = dungDom();
+    vi.resetModules();
+    const { nutManChon, nutCuaHang } = await import('../src/ui/mecung-ui.js');
+    const { CUA_HANG } = await import('../src/data/shop.js');
+    const { BO_DE, timBoDe } = await import('../src/data/banks.js');
+    const { MAZE_DIFF } = await import('../src/data/difficulty.js');
+    await import('../src/mecung.js');
+    dom.chay(1);
+
+    const nutMenu = nutManChon({
+      muc: 1,
+      boDe: 'toan',
+      boDeList: BO_DE,
+      capList: timBoDe('toan').capDo,
+      cap: '1',
+      mucList: MAZE_DIFF,
+      tenSkin: 'x',
+    });
+    const giua = (ds, id) => {
+      const b = ds.find((n) => n.id === id);
+      return [b.x + b.w / 2, b.y + b.h / 2];
+    };
+
+    // Từ màn chọn: mở cửa hàng rồi quay lại → phải về màn chọn
+    dom.bam(...giua(nutMenu, 'moShop'));
+    dom.chay(1);
+    expect(dom.manHinh()).toContain('Cửa hàng');
+    const nutShop = nutCuaHang(
+      CUA_HANG.map((m) => ({ ...m, daCo: false })),
+      0,
+    );
+    dom.bam(...giua(nutShop, 've'));
+    dom.chay(1);
+    expect(dom.manHinh()).toContain('Mê Cung Tri Thức'); // tiêu đề màn chọn
+  });
+
   it('đổi lớp và đổi phiên bản ở màn chọn không làm vỡ', async () => {
     const dom = dungDom();
     vi.resetModules();

@@ -116,6 +116,24 @@ describe('ui/mecung-ui: bố cục nút', () => {
     kiem(nutTrongMeCung({ nhac: 1, tieng: 1 }));
   });
 
+  // Vừa qua cửa là lúc bé có nhiều xu nhất và muốn tiêu nhất. Bắt quay về màn chọn mới
+  // mua được là chặn đúng lúc người ta muốn mua.
+  it('MÀN THẮNG có lối vào cửa hàng ngay tại chỗ', () => {
+    const nut = nutManThang();
+    expect(nut.map((b) => b.id)).toContain('moShop');
+    expect(nut.map((b) => b.id).sort()).toEqual(['lai', 'moShop', 'tiep', 've'].sort());
+  });
+
+  it('màn thắng: "Mê cung sau" là nút chính, to hơn ba nút phụ', () => {
+    const nut = nutManThang();
+    const tiep = nut.find((b) => b.id === 'tiep');
+    for (const b of nut.filter((x) => x.id !== 'tiep')) {
+      expect(tiep.w, `${b.id}`).toBeGreaterThan(b.w);
+      expect(tiep.y, `${b.id}`).toBeLessThan(b.y); // và nằm trên
+    }
+    expect(tiep.mau).toBe('hong');
+  });
+
   it('nút trong mê cung nằm gọn trên thanh đỉnh, không che mê cung', () => {
     for (const b of nutTrongMeCung({ nhac: 1, tieng: 1 }))
       expect(b.y + b.h, b.id).toBeLessThanOrEqual(52);

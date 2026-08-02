@@ -91,6 +91,7 @@ let cau = null, // câu đang hỏi
   sai = [], // các đáp án đã chọn sai
   loiGiai = false; // đã sai đủ 3 lần → hiện lời giải
 let dangBam = null; // nút đang bị nhấn giữ, để vẽ hiệu ứng lún
+let shopTuDau = 'chon'; // mở cửa hàng từ màn nào, để đóng thì trả về đúng đó
 let duongTuDi = null; // đường đang tự đi sau khi bấm chuột vào một ô
 
 const vi = makeProgress(); // ví xu + điểm + mức âm lượng, sống qua nhiều ván
@@ -340,8 +341,12 @@ function bamNut(id) {
   else if (id === 'lai') batDau(hat);
   // Nút ☰ trong mê cung: LƯU rồi mới ra, đúng tinh thần "không bao giờ mất tiến trình".
   else if (id === 've') {
-    if (man === 'choi' || man === 'tam') luuVanDangCho();
-    man = 'chon';
+    if (man === 'shop')
+      man = shopTuDau; // đóng cửa hàng → về đúng màn đã mở nó
+    else {
+      if (man === 'choi' || man === 'tam') luuVanDangCho();
+      man = 'chon';
+    }
   }
   // Bấm là xoay vòng qua 4 mức Tắt → Nhỏ → Vừa → To
   else if (id === 'nhac') {
@@ -350,8 +355,13 @@ function bamNut(id) {
   } else if (id === 'tieng') {
     vi.datAm(vi.amNhac, (vi.amTieng + 1) % MUC_AM.length);
     apDungAm();
-  } else if (id === 'moShop') man = 'shop';
-  else if (id === 'toanManHinh') toanManHinh();
+  }
+  // Nhớ mở cửa hàng TỪ ĐÂU để lúc đóng trả về đúng chỗ. Vào từ màn thắng mà đóng ra màn
+  // chọn thì mất luôn bảng kê phần thưởng đang xem dở.
+  else if (id === 'moShop') {
+    shopTuDau = man;
+    man = 'shop';
+  } else if (id === 'toanManHinh') toanManHinh();
   else if (id.startsWith('mua_')) {
     const m = CUA_HANG.find((t) => t.id === id.slice(4));
     if (m && vi.mua(m.id, m.gia)) sLife();
@@ -434,8 +444,11 @@ window.addEventListener('keydown', (e) => {
     if (inMap(KEYMAP.ok, e.code)) return batDau(hat);
     if (e.code === 'KeyB') skin = (skin + 1) % SKINS.length;
     if (e.code === 'KeyL') cap = doiCap(1, true);
-    if (e.code === 'KeyS') man = 'shop';
-  } else if (man === 'shop' && inMap(KEYMAP.pause, e.code)) man = 'chon';
+    if (e.code === 'KeyS') {
+      shopTuDau = 'chon';
+      man = 'shop';
+    }
+  } else if (man === 'shop' && inMap(KEYMAP.pause, e.code)) man = shopTuDau;
   else if (man === 'thang' && inMap(KEYMAP.ok, e.code)) batDau(hat + 1);
   else if (man === 'choi' && inMap(KEYMAP.pause, e.code)) tamDung(true);
   else if (man === 'tam' && inMap(KEYMAP.pause, e.code)) man = 'choi';

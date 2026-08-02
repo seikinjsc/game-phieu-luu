@@ -187,15 +187,21 @@ export function nutTamDung() {
   ];
 }
 
+// Màn THẮNG. Vừa qua cửa là lúc bé có nhiều xu nhất và muốn tiêu nhất, nên CỬA HÀNG phải
+// có mặt ngay đây — bắt quay về màn chọn mới mua được là chặn đúng lúc người ta muốn mua.
+// "Mê cung sau" tách thành hàng riêng ở trên: đó là việc mặc định, ba nút kia là phụ.
 export function nutManThang() {
-  return hangNut(
-    [
-      { id: 'tiep', nhan: '▶ Mê cung sau', mau: 'hong' },
-      { id: 'lai', nhan: '⟲ Chơi lại', mau: 'xanh' },
-      { id: 've', nhan: '☰ Màn chọn', mau: 'xam' },
-    ],
-    { x: 150, y: 500, w: 600, h: 62 },
-  );
+  return [
+    { id: 'tiep', nhan: '▶  Mê cung sau', mau: 'hong', x: 250, y: 430, w: 400, h: 62, lon: true },
+    ...hangNut(
+      [
+        { id: 'lai', nhan: '⟲ Chơi lại', mau: 'xanh' },
+        { id: 'moShop', nhan: '🛒 Cửa hàng', mau: 'vang' },
+        { id: 've', nhan: '☰ Màn chọn', mau: 'xam' },
+      ],
+      { x: COT.x, y: 510, w: COT.w, h: 52 },
+    ),
+  ];
 }
 
 // Nút bật/tắt tiếng. Bắt buộc phải có và phải dễ thấy: nhạc nền là thứ người lớn ngồi
