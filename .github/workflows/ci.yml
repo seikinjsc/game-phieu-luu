@@ -18,7 +18,12 @@ jobs:
       - run: npm run lint
       - run: npm run check:all # test + hud-check + balance
       - run: npm run build
+      # Tải về được cả hai game để thử ngay, không cần chờ deploy.
       - uses: actions/upload-artifact@v4
         with:
           name: game
-          path: dist/game.html
+          path: |
+            dist/index.html
+            dist/game.html
+            dist/mecung.html
+            dist/multi.html

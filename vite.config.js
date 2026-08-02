@@ -15,6 +15,11 @@ export default defineConfig({
     assetsInlineLimit: 100_000_000,
     cssCodeSplit: false,
     target: 'es2020',
+    // Chỉ dựng trang MÊ CUNG. Game 60 cửa vẫn là bản legacy một tệp, do tools/build.mjs
+    // sao thẳng sang dist — không đi qua Vite (xem đầu tệp đó).
+    // `emptyOutDir: false` vì build.mjs chạy TRƯỚC và đã đặt game.html vào dist rồi.
+    rollupOptions: { input: 'mecung.html' },
+    emptyOutDir: false,
   },
   // Vitest đọc chính tệp cấu hình này.
   test: {

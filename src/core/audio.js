@@ -5,7 +5,9 @@
 // và bọc try/catch — KHÔNG được nới lỏng.
 
 // Cờ bật/tắt tiếng — khi ghép game thì đồng bộ từ cài đặt (SET.music/SET.sfx).
-export const audioCfg = { music: 1, sfx: 1 };
+// musicVol / sfxVol là HỆ SỐ NHÂN âm lượng, mặc định 1 = đúng độ to cũ. Giữ mặc định 1
+// để game 60 cửa không bị đổi tiếng; trang mê cung tự đặt hệ số cao hơn khi khởi động.
+export const audioCfg = { music: 1, sfx: 1, musicVol: 1, sfxVol: 1 };
 
 let actx = null;
 export function ac() {
@@ -34,7 +36,12 @@ export function tone(f, d, ty, v, mus) {
   v = +v;
   if (!isFinite(f) || f <= 0) return;
   d = !isFinite(d) ? 0.12 : Math.max(0.03, Math.min(4, d));
-  v = !isFinite(v) || v <= 0 ? 0.07 : Math.min(0.3, v);
+  // Nhân hệ số âm lượng TRƯỚC khi kẹp. Trần nâng 0.3 → 0.6 để mức "To" thật sự to hơn;
+  // mọi lời gọi cũ đều truyền v ≤ 0.09 nên với hệ số 1 chúng không đổi một chút nào.
+  // LỖI LỊCH SỬ #2: vẫn PHẢI kẹp, một giá trị âm/NaN lọt vào Web Audio là chết cả tiếng.
+  const he = +(mus ? audioCfg.musicVol : audioCfg.sfxVol);
+  v = v * (isFinite(he) && he > 0 ? he : 1);
+  v = !isFinite(v) || v <= 0 ? 0.07 : Math.min(0.6, v);
   try {
     const o = a.createOscillator(),
       g = a.createGain();

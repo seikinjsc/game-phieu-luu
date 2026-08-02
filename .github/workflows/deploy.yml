@@ -29,7 +29,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: cp dist/game.html dist/index.html
+      # `npm run build` nay tự sinh dist/index.html (trang chọn game) qua tools/trang-chu.mjs,
+      # nên KHÔNG sao game.html thành index.html nữa. Muốn gốc trang lại là game 60 cửa thì
+      # bỏ `node tools/trang-chu.mjs` khỏi script build và thêm lại dòng cp ở đây.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

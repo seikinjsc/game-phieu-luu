@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "node tools/build.mjs",
+    "build": "node tools/build.mjs && vite build && node tools/trang-chu.mjs",
     "build:app": "vite build && node -e \"require('fs').renameSync('dist/index.html','dist/game.html')\"",
     "preview": "vite preview",
     "test": "vitest run",
