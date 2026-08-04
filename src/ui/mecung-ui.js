@@ -101,12 +101,28 @@ export function nutManChon(st) {
       h: 52,
       tat: iCap >= st.capList.length - 1,
     },
-    { id: 'phienBan', nhan: st.tenSkin, mau: 'trang', x: C.x, y: Y.hangPhu, w: 290, h: 48 },
-    { id: 'toanManHinh', nhan: '⛶', mau: 'xam', x: 402, y: Y.hangPhu, w: 48, h: 48 },
+    // HÀNG TUỲ CHỌN CHỈ CHỨA ĐƯỢC BỐN NÚT. `drawButton` KHÔNG co chữ, mà nhãn dài nhất của
+    // bốn nút này cộng lại đã là 201 + 109 + 127 + 138 = 575px trên tổng 700px bề ngang —
+    // nhét nút thứ năm vào là chữ tràn ra ngoài viên thuốc, không có gì báo. Vì vậy nút
+    // toàn màn hình ⛶ đã dời xuống hàng dưới. Có test canh bề ngang nhãn.
+    { id: 'phienBan', nhan: st.tenSkin, mau: 'trang', x: C.x, y: Y.hangPhu, w: 225, h: 48 },
+    // GÓC NHÌN: hiện trạng thái ĐANG dùng, bấm là đổi — cùng lối với nút phiên bản bên cạnh.
+    {
+      id: 'gocNhin',
+      nhan: st.nhapVai ? '👁 Nhập vai' : '🗺 Từ trên',
+      mau: st.nhapVai ? 'xanh' : 'xam',
+      x: 335,
+      y: Y.hangPhu,
+      w: 135,
+      h: 48,
+    },
     // Hai nút âm lượng ghi rõ NHẠC / TIẾNG. Trước đây cả hai đều chỉ ghi "To" nên nhìn
     // không biết nút nào là nhạc nút nào là hiệu ứng.
-    ...nutAmThanh(st, Y.hangPhu, 462, 48, 164), // 462..626 và 636..800
-    { id: 'moShop', nhan: '🛒 Cửa hàng', mau: 'vang', x: C.x, y: Y.hangChinh, w: 210, h: 66 },
+    ...nutAmThanh(st, Y.hangPhu, 480, 48, 155), // 480..635 và 645..800
+    // ⛶ xuống đây vì hàng tuỳ chọn đã hết chỗ (xem ghi chú ở trên). Đứng cạnh Cửa hàng
+    // cũng hợp lý hơn: cả hai đều là việc làm một lần rồi thôi.
+    { id: 'toanManHinh', nhan: '⛶', mau: 'xam', x: C.x, y: Y.hangChinh, w: 66, h: 66 },
+    { id: 'moShop', nhan: '🛒 Cửa hàng', mau: 'vang', x: 178, y: Y.hangChinh, w: 190, h: 66 },
     // Có ván đang chơi dở thì CHƠI TIẾP là nút chính, ván mới lùi xuống nút phụ. Mở game lên
     // mà nút to nhất là "bắt đầu lại" thì rất dễ bấm nhầm, mất sạch ván đang dở.
     ...(st.coVanCu
@@ -115,22 +131,22 @@ export function nutManChon(st) {
             id: 'choiTiep',
             nhan: '▶  CHƠI TIẾP',
             mau: 'hong',
-            x: 322,
+            x: 380,
             y: Y.hangChinh,
-            w: 302,
+            w: 280,
             h: 66,
             lon: true,
           },
-          { id: 'batDau', nhan: 'Ván mới', mau: 'xanh', x: 636, y: Y.hangChinh, w: 164, h: 66 },
+          { id: 'batDau', nhan: 'Ván mới', mau: 'xanh', x: 672, y: Y.hangChinh, w: 128, h: 66 },
         ]
       : [
           {
             id: 'batDau',
             nhan: '▶  BẮT ĐẦU',
             mau: 'hong',
-            x: 322,
+            x: 380,
             y: Y.hangChinh,
-            w: 478,
+            w: 420,
             h: 66,
             lon: true,
           },
@@ -151,8 +167,18 @@ export function nutCauHoi(st) {
     sai: st.sai.includes(i),
     dung: st.loiGiai && i === st.k,
   }));
+  // Hết 3 lượt: ô "?" thưởng thì đi tiếp bình thường, còn CỬA KHOÁ thì vẫn khoá — nhãn nút
+  // phải nói đúng chuyện đó, chứ bấm "Đi tiếp" rồi thấy cửa vẫn đóng là tưởng game hỏng.
   if (st.loiGiai)
-    nut.push({ id: 'tiepTuc', nhan: 'Đi tiếp  ▶', mau: 'luc', x: 330, y: 552, w: 240, h: 58 });
+    nut.push({
+      id: 'tiepTuc',
+      nhan: st.thuong ? 'Đi tiếp  ▶' : 'Quay lại thử sau  ▶',
+      mau: 'luc',
+      x: 330,
+      y: 552,
+      w: 240,
+      h: 58,
+    });
   return nut;
 }
 
@@ -176,14 +202,35 @@ export function nutCuaHang(mon, viXu) {
 // Màn TẠM DỪNG — cùng bộ lựa chọn với game Phiêu Lưu (tiếp tục · chơi lại · lưu & thoát ·
 // thoát không lưu). Xếp dọc một cột để bé không bấm nhầm, và tách hẳn nút "thoát không lưu"
 // xuống dưới cùng: đó là nút duy nhất làm mất tiến trình.
-export function nutTamDung() {
+export function nutTamDung(st = {}) {
   const x = 300,
     w = 300;
   return [
-    { id: 'tiepTuc', nhan: '▶  Tiếp tục', mau: 'hong', x, y: 250, w, h: 62, lon: true },
-    { id: 'lai', nhan: '🔄 Chơi lại mê cung này', mau: 'xanh', x, y: 326, w, h: 52 },
-    { id: 'luuThoat', nhan: '💾 Lưu & ra màn chọn', mau: 'luc', x, y: 390, w, h: 52 },
-    { id: 'boVan', nhan: '🚪 Thoát, không lưu', mau: 'xam', x, y: 466, w, h: 48 },
+    // Bốn lựa chọn của vòng chơi, giữ nguyên thứ tự cũ.
+    { id: 'tiepTuc', nhan: '▶  Tiếp tục', mau: 'hong', x, y: 250, w, h: 56, lon: true },
+    { id: 'lai', nhan: '🔄 Chơi lại mê cung này', mau: 'xanh', x, y: 314, w, h: 46 },
+    { id: 'luuThoat', nhan: '💾 Lưu & ra màn chọn', mau: 'luc', x, y: 368, w, h: 46 },
+    { id: 'boVan', nhan: '🚪 Thoát, không lưu', mau: 'xam', x, y: 422, w, h: 46 },
+    // Hai nút HIỂN THỊ, tách xuống dưới bằng khoảng hở rộng gấp đôi — chúng không làm gì
+    // tới ván đang chơi, đứng lẫn vào bốn nút trên là dễ bấm nhầm.
+    {
+      id: 'gocNhin',
+      nhan: st.nhapVai ? '👁 Góc nhìn: Nhập vai' : '🗺 Góc nhìn: Trên xuống',
+      mau: st.nhapVai ? 'xanh' : 'xam',
+      x,
+      y: 484,
+      w,
+      h: 46,
+    },
+    {
+      id: 'fps',
+      nhan: st.hienFps ? '📈 Đang hiện FPS' : '📈 Hiện FPS',
+      mau: st.hienFps ? 'xanh' : 'xam',
+      x,
+      y: 538,
+      w,
+      h: 46,
+    },
   ];
 }
 
@@ -245,6 +292,10 @@ export function nutAmThanh(st, y, x = 726, h = 44, rong = 76) {
 // Trong mê cung: nút nằm gọn trên THANH THÔNG TIN ở đỉnh, không chiếm chỗ của mê cung.
 export function nutTrongMeCung(st = { nhac: 1, tieng: 1 }) {
   return [
+    // KHÔNG thêm nút góc nhìn vào đây. Luật cứng: mọi nút trong mê cung phải nằm gọn trên
+    // thanh đỉnh (y + h ≤ 52), không được đè lên khung mê cung — lỗi lịch sử #13. Mà thanh
+    // đỉnh đã kín: ô HUD xấu nhất (mức Dễ, 7 tim, ví 6 chữ số) chạm tới x ≈ 587 còn nút ☰
+    // bắt đầu ngay ở 596. Nút đổi góc nhìn vì thế nằm ở màn chọn và màn tạm dừng.
     { id: 've', nhan: '☰', mau: 'xam', x: 596, y: 4, w: 56, h: 44 },
     { id: 'toanManHinh', nhan: '⛶', mau: 'xam', x: 660, y: 4, w: 56, h: 44 },
     ...nutAmThanh(st, 4, 728, 44), // nhac 728..804 · tieng 814..890 — vừa khít mép phải

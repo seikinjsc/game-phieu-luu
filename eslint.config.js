@@ -14,6 +14,7 @@ export default [
         window: 'readonly',
         document: 'readonly',
         requestAnimationFrame: 'readonly',
+        performance: 'readonly', // đo thời gian thật của một khung (đồng hồ FPS)
         AudioContext: 'readonly',
         localStorage: 'readonly',
         setTimeout: 'readonly',
@@ -39,6 +40,7 @@ export default [
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         globalThis: 'readonly',
+        performance: 'readonly', // tools/ray-bench.mjs đo thời gian bằng đồng hồ độ phân giải cao
       },
     },
   },

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { makeRng } from '../src/core/rng.js';
 import { MATH_TEMPLATES, mathIds, genMath } from '../src/data/questions/math-gen.js';
 
+const BY_ID = (id) => MATH_TEMPLATES.find((t) => t.id === id);
+
 // Sinh N mẫu của một khuôn với hạt cố định → tất định, lỗi tái hiện được.
 const samples = (id, N = 300, seed = 12345) => {
   const rng = makeRng(seed);
@@ -204,17 +206,32 @@ describe('math-gen: bám đúng miền số của từng lớp', () => {
     }
   });
 
+  // Không chốt cứng danh sách id nữa — thêm khuôn mới là việc thường xuyên, mà chốt cứng
+  // thì mỗi lần thêm lại phải sửa test, dễ sinh thói sửa test cho xanh.
   it('mathIds lọc đúng theo lớp và mức', () => {
-    expect(mathIds(1)).toEqual(['m1-nham', 'm1-sosanh', 'm1-cong', 'm1-tru']);
-    expect(mathIds(2, 1)).toEqual(['m2-cong-nho', 'm2-tru-nho']); // mức 2 bị loại
+    for (let lop = 1; lop <= 5; lop++) {
+      const ds = mathIds(lop);
+      expect(ds.length, `lớp ${lop}`).toBe(MATH_TEMPLATES.filter((t) => t.grade === lop).length);
+      for (const id of ds) expect(BY_ID(id).grade, id).toBe(lop);
+    }
+    const de = mathIds(2, 1); // maxLevel = 1 → mức 2 và 3 bị loại
+    expect(de.length).toBeGreaterThan(0);
+    expect(de.length).toBeLessThan(mathIds(2).length);
+    for (const id of de) expect(BY_ID(id).level, id).toBeLessThanOrEqual(1);
     expect(mathIds(9)).toEqual([]); // chưa có khuôn THCS — không được ném lỗi
   });
 
-  // Lớp 1 chỉ có 2 khuôn thì hộp Leitner chỉ theo dõi được 2 kỹ năng, và bé gặp lại
-  // cùng một dạng liên tục. Bốn khuôn là mức tối thiểu để không nhàm.
-  it('mỗi lớp có ít nhất 3 khuôn — đủ đa dạng để không lặp ngay', () => {
+  // Hộp Leitner chống lặp bằng cửa sổ = số khuôn / 2. Lớp nào chỉ có 3 khuôn thì cửa sổ
+  // chỉ rộng 1 — đi vài cửa là gặp lại đúng kỹ năng cũ. Nay sai còn mất tim nên bé sẽ
+  // học thuộc dạng thay vì học kỹ năng. Bảy khuôn mỗi lớp là mức sàn.
+  it('mỗi lớp có ít nhất 7 khuôn — đủ đa dạng để hộp Leitner giãn cách được', () => {
     for (let lop = 1; lop <= 5; lop++)
-      expect(mathIds(lop).length, `lớp ${lop}`).toBeGreaterThanOrEqual(3);
+      expect(mathIds(lop).length, `lớp ${lop}`).toBeGreaterThanOrEqual(7);
+  });
+
+  it('id khuôn không trùng nhau', () => {
+    const s = new Set(MATH_TEMPLATES.map((t) => t.id));
+    expect(s.size).toBe(MATH_TEMPLATES.length);
   });
 });
 

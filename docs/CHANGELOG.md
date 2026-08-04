@@ -8,6 +8,89 @@ dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
 
 ### Added
 
+- **Mê cung — GÓC NHÌN NHẬP VAI** (`src/render/maze3d.js`, xem `docs/ME-CUNG-3D.md`).
+  Dựng bằng **raycasting kiểu Wolfenstein 3D trên Canvas 2D** — không thư viện, không tệp
+  ảnh, vẫn gói được vào một tệp .html. Chọn raycasting vì mê cung đã là lưới vuông góc một
+  tầng, và bộ dựng hình chỉ cần đúng một phép hỏi `maze.isWall(x, y)` mà `systems/maze.js`
+  xuất sẵn. Cấu trúc dữ liệu đang có *đã là* cấu trúc lý tưởng.
+  - **Hai góc nhìn sống song song**, chọn ở màn chọn hoặc màn tạm dừng, lưu trong ví
+    (`vi.gocNhin`). Bản nhìn từ trên xuống KHÔNG bị thay thế: nó là đường lùi cho máy yếu,
+    cho màn hình chia đôi hai người, và cho bé chưa quen. Phím tắt `V`.
+  - **Phương án A1** — giữ nguyên đi từng tâm ô sang tâm ô, `maze-run.js` không sửa một dòng
+    nào. Đi tự do kiểu Half-Life sẽ mang lỗi "kẹt góc" ghi ở đầu `maze-run.js` quay lại.
+  - Vân tường **sinh bằng mã** lúc khởi động; sương mờ theo `sight` của mức khó; bản đồ nhỏ
+    ở góc dùng lại nguyên hàm vẽ 2D.
+  - **Vật thể trên đường đi**: quái · cửa câu hỏi (cánh gỗ có dấu ?) · rương thưởng · xu lơ
+    lửng · cửa ra (đỏ khi thiếu chìa, xanh khi đủ). Có **bộ đệm độ sâu** nên quái đứng sau
+    tường không hiện ra, và xếp xa-trước-gần-sau nên chiều sâu không lộn ngược.
+  - **Điều khiển theo mắt, không theo bản đồ**: ↑ tiến · ← → quay 90° · ↓ quay lại. Bốn vùng
+    bấm chuột làm y hệt. Trái/phải là lệnh QUAY chứ không phải đi ngang — nhân vật chỉ có một
+    hướng, nên "bước sang trái" sẽ thành lượn vòng tròn tại chỗ.
+  - **Giữ chuột trái kéo để nhìn quanh**. Kéo theo kiểu nắm lấy cảnh (kéo phải → nhìn quay
+    trái) vì con trỏ không bị khoá. Nhả chuột sau khi kéo không bị tính là lệnh đi.
+  - `npm run bench:3d` — đo chi phí dựng hình không cần trình duyệt. Thêm **đồng hồ FPS**
+    vào `src/mecung.js` (phím `` ` ``), hiện cả thời gian thật đã tiêu trên ngân sách khung:
+    `fps` bị chặn theo tần số quét màn hình nên không nói được còn thừa bao nhiêu.
+  - **Đo trên máy thật: dưới 10% ngân sách khung** ở mức Khó. Mọi cảnh báo "máy đích không
+    khoẻ" trong bản phân tích đều suy ra từ lịch sử commit chứ không từ phép đo, và suy đoán
+    đó sai.
+
+### Changed
+
+- **Mê cung — bấm chuột đi TỪNG Ô** thay vì tự đi hết đường tới đích. Người chơi giữ quyền
+  quyết định ở mọi ô. (Đã thử bản trung gian "đi tới ngã rẽ kế tiếp" rồi bỏ.)
+
+### Added
+
+- **Kho tri thức mở rộng gấp gần ba lần** — hệ quả trực tiếp của luật "sai mất tim, hết lượt
+  thì cửa vẫn khoá": bé quay lại cửa nhiều hơn hẳn, kho mỏng là lộ ngay. Cửa sổ chống lặp
+  của hộp Leitner rộng bằng **nửa số câu trong nhóm**, nên độ sâu của từng nhóm mới là thứ
+  quyết định có lặp câu hay không.
+  - **Toán: 17 → 46 khuôn**, mỗi lớp ≥ 8 (trước đây lớp 3–5 chỉ có 3 khuôn, cửa sổ chống
+    lặp rộng đúng 1). Bám Chương trình GDPT 2018:
+    - *Lớp 1* thêm số liền trước/liền sau · tìm số còn thiếu · xem đồng hồ giờ đúng · cấu tạo chục–đơn vị.
+    - *Lớp 2* thêm cộng trong 1000 · đổi dm/cm/m/km · xem giờ rưỡi · tiền Việt Nam · toán có lời văn (chỉ bảng 2 và 5).
+    - *Lớp 3* thêm bảng nhân 6–9 · chia có dư · gấp lên/giảm đi · tìm x · hình vuông · đổi g/ml/mm.
+    - *Lớp 4* thêm nhân số có hai chữ số · dấu hiệu chia hết · rút gọn phân số · so sánh phân số ·
+      trừ phân số · tìm phân số của một số · tổng–hiệu.
+    - *Lớp 5* thêm cộng/trừ và chia số thập phân · diện tích tam giác, hình thang, hình tròn ·
+      thể tích hình hộp · tìm một số biết giá trị phần trăm.
+    - Mọi khuôn mới đều khai báo **mồi nhử là lỗi sai thật** (quên chia 2, quên viết lùi cột,
+      đọc giờ theo kim dài, "giảm đi 3 lần" hiểu thành "bớt 3"…) và `why` nói trúng chỗ sai đó.
+    - Số thập phân tính trên số NGUYÊN phần mười rồi mới đổi ra chữ — làm thẳng trên số thực
+      thì `12.5 − 3.4` ra `9.099999999999998` và đáp án hiện ra sai bét.
+  - **Trạng Nguyên nhí: 44 → 110 câu**, thêm ba nhóm mới 🍎 Trái cây (16) · 🏠 Đồ vật trong
+    nhà (14) · 🌈 Thiên nhiên (14); nhóm cũ dày lên: con vật 24→32, đố chữ 13→20, đồ dùng 7→14.
+    Mỗi nhóm **đồng nhất một loại đáp án** — đó là điều kiện để mồi nhử tự sinh (`tuSinhMoiNhu`)
+    còn đúng luật, nhóm lẫn "Con mèo" với "Cái bàn" thì bé loại trừ bằng hình thức.
+  - **Olympia: 61 → 119 câu**, mọi nhóm ≥ 15: khoa học 18→26 · địa lý 11→20 · lịch sử 8→20 ·
+    văn học 8→18 · toán đố 7→15 · đời sống 9→20. Mồi nhử **viết tay từng câu** theo đúng luật
+    cứng của bộ này.
+  - Thêm phép canh dữ liệu: không trùng đáp án trong Trạng Nguyên (bảng tra nhóm lập theo đáp
+    án, trùng là bảng sai và phép canh "mồi nhử cùng nhóm" mù luôn) · không trùng đề bài ·
+    không trùng đáp án trong cùng nhóm Olympia · sàn số câu mỗi nhóm nâng lên.
+
+### Changed
+
+- **Mê cung — câu hỏi nay có giá.** Đổi luật cũ "sai vẫn mở cửa" theo yêu cầu người chơi:
+  - **Sai một đáp án = mất một tim.** Cố ý KHÔNG dùng khoảng bất tử 1,5 giây của đòn quái —
+    bất tử là để chống bị vây, còn đây là hình phạt của câu hỏi; dính bất tử thì bấm bừa ba
+    lần trong 1,5 giây coi như không mất gì.
+  - **Vẫn tối đa 3 lượt mỗi câu.** Hết 3 lượt: hiện lời giải, và **cửa khoá VẪN KHOÁ** —
+    phải quay lại trả lời tiếp mới lấy được chìa. Nút thoát đổi nhãn thành
+    "Quay lại thử sau ▶" để không ai tưởng game hỏng.
+  - **Ô "?" thưởng thì luôn coi như dùng xong** dù sai hay đúng (nếu để nguyên thì đứng đó
+    bấm lại vô hạn để đổi lấy câu dễ). Nhưng sai ở ô thưởng **cũng mất tim** — nó là canh
+    bạc, không còn là quà miễn phí.
+  - **Không hề có bế tắc.** Hết tim → về cửa đã mở gần nhất với **đầy tim**, giữ nguyên
+    chìa/xu/thời gian (luật §2 không đổi). Quay lại cửa cũ là được hỏi **câu khác**.
+  - **Câu hỏi ra ngẫu nhiên theo LƯỢT CHƠI**, không còn gieo theo mã mê cung. Trước đây
+    `makeRng(seed * 7919)` nên chơi lại cùng mê cung là gặp đúng chuỗi câu cũ ở đúng những
+    cửa cũ — bé học thuộc vị trí đáp án chứ không học kiến thức, mà nay sai còn mất tim nên
+    học vẹt càng có lợi. Bố cục mê cung/cửa/xu **vẫn gieo theo `seed`**, không đổi.
+  - Màn câu hỏi **vẽ lại dãy tim** ở góc trái: màn này phủ kín HUD, không thấy tim vơi đi thì
+    hình phạt trở nên vô hình.
+
 ### Added
 
 - **Mê cung — quái vật, chiến đấu, tim, cửa hàng vũ khí** (đợt 2).

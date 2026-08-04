@@ -311,6 +311,17 @@ export function makeRun(seed, level = 1, opts = {}) {
       }
       return { trung: true, haGuc: false };
     },
+    // Mất một tim vì TRẢ LỜI SAI. Cố ý KHÔNG đi qua `batTu` như đòn của quái: bất tử là để
+    // chống bị quái vây, còn đây là hình phạt của câu hỏi — dính bất tử thì bấm bừa ba lần
+    // trong 1,5 giây coi như không mất gì.
+    // Trả về true khi hết tim (đã đưa về chỗ an toàn với đủ tim) — lớp trên đóng câu hỏi lại.
+    matTim() {
+      if (won || tim <= 0) return false;
+      tim--;
+      if (tim > 0) return false;
+      veChoAnToan();
+      return true;
+    },
     // Quay mặt ngay lập tức, không đợi khung sau. Dùng khi bấm chuột vào một ô: nhân vật
     // ngoảnh về phía đó tức thì, người chơi thấy lệnh được nhận ngay.
     nhinVe(d) {
@@ -349,13 +360,16 @@ export function makeRun(seed, level = 1, opts = {}) {
     get stars() {
       return stars;
     },
-    // Đóng cửa khoá đang treo. LUẬT CỨNG (ME-CUNG-DESIGN.md §2): cửa LUÔN mở, kể cả khi
-    // trả lời sai — sai chỉ mất sao và mất thời gian, KHÔNG BAO GIỜ chặn đường đi.
-    // Trẻ 6 tuổi kẹt 2 phút là bỏ game, mà bỏ game thì không học được gì cả.
-    resolve(dung, phatGiay = 0) {
+    // Đóng cửa khoá đang treo.
+    // `moCua = false` → hết lượt trả lời, CỬA KHOÁ VẪN KHOÁ: phải quay lại trả lời tiếp
+    // (lần sau là câu hỏi khác). Không phải bế tắc — hết tim thì `matTim()` đưa về chỗ an
+    // toàn với đủ tim, nên lúc nào cũng còn đường thử lại.
+    // Ô "?" thưởng thì LUÔN coi như dùng xong dù sai hay đúng — để nguyên sẽ thành chỗ bấm
+    // lại vô hạn đổi câu dễ mà lấy thưởng.
+    resolve(dung, phatGiay = 0, moCua = true) {
       if (!pending) return null;
       const g = pending;
-      opened.add(g.id);
+      if (moCua || g.loai === 'thuong') opened.add(g.id);
       if (dung && g.loai === 'cua') stars++; // sao chỉ tính cho CỬA KHOÁ, không tính ô thưởng
       time += phatGiay;
       pending = null;

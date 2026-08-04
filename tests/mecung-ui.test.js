@@ -5,6 +5,7 @@ import {
   nutManChon,
   nutCauHoi,
   nutManThang,
+  nutTamDung,
   nutTrongMeCung,
   nutCuaHang,
   toaDoChuot,
@@ -137,6 +138,40 @@ describe('ui/mecung-ui: bố cục nút', () => {
   it('nút trong mê cung nằm gọn trên thanh đỉnh, không che mê cung', () => {
     for (const b of nutTrongMeCung({ nhac: 1, tieng: 1 }))
       expect(b.y + b.h, b.id).toBeLessThanOrEqual(52);
+  });
+
+  // `drawButton` vẽ nhãn ở cỡ chữ CỐ ĐỊNH và KHÔNG co lại khi chật — nhãn dài hơn nút thì
+  // chữ tràn ra ngoài viên thuốc mà không có gì báo. Đây là lỗi im lặng đúng kiểu #10/#12
+  // trong bảng lỗi lịch sử, nên phải có máy canh. Ước lượng bề ngang hơi rộng tay một chút
+  // (10,6px mỗi chữ ở cỡ 19) để test đỏ TRƯỚC khi mắt thường nhìn ra.
+  const beNgang = (s, lon) =>
+    [...String(s)].reduce(
+      (a, c) => a + (c.codePointAt(0) > 0x2000 ? (lon ? 28 : 21) : lon ? 14.5 : 10.6),
+      0,
+    );
+
+  it('NHÃN nút phải vừa bề ngang nút, còn dư chỗ hai bên', () => {
+    const kiem = (nut) => {
+      for (const b of nut) {
+        if (!b.nhan) continue;
+        const can = beNgang(b.nhan, b.lon);
+        expect(
+          b.w - can,
+          `"${b.nhan}" cần ${can.toFixed(0)}px mà nút ${b.id} chỉ rộng ${b.w}`,
+        ).toBeGreaterThanOrEqual(14);
+      }
+    };
+    // Duyệt mọi tổ hợp làm nhãn DÀI RA: tên phiên bản dài nhất, cả bốn mức âm lượng,
+    // cả hai góc nhìn, có và không có ván đang chơi dở.
+    for (const tenSkin of ['🟫 Xứ Khối Vuông', '🟣 Học Viện Phù Chú', '🟠 Quần Đảo Kho Báu'])
+      for (const nhapVai of [0, 1])
+        for (const coVanCu of [false, true])
+          for (const am of [0, 1, 2, 3])
+            kiem(nutManChon(stMenu({ tenSkin, nhapVai, coVanCu, mucNhac: am, mucTieng: am })));
+    for (const nhapVai of [0, 1])
+      for (const hienFps of [0, 1]) kiem(nutTamDung({ nhapVai, hienFps }));
+    kiem(nutManThang());
+    kiem(nutCuaHang(monGia, 999));
   });
 
   it('mọi nút đều khai báo màu có thật trong bảng', () => {

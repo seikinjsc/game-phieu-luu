@@ -14,6 +14,11 @@ function dungDom() {
       // Bắt buộc phải có: mã vẽ dùng measureText để ngắt dòng. Proxy trả hàm rỗng thì
       // `.width` là undefined và cả vòng lặp game chết ngay khung đầu.
       measureText: (t) => ({ width: String(t).length * 9 }),
+      // Cùng lý do: các hàm canvas TRẢ VỀ ĐỐI TƯỢNG phải được giả lập riêng. Proxy trả
+      // `() => {}` cho mọi thứ, nên `createLinearGradient().addColorStop()` sẽ nổ ngay.
+      // Góc nhìn nhập vai dùng dải màu chuyển sắc cho trần và sàn.
+      createLinearGradient: () => ({ addColorStop() {} }),
+      createRadialGradient: () => ({ addColorStop() {} }),
     },
     {
       get: (t, k) => {
@@ -30,6 +35,8 @@ function dungDom() {
   let khung = null;
   const chuot = [];
   globalThis.document = {
+    // Dùng chung một ctx giả cho cả canvas chính lẫn các canvas ẩn mà maze3d dựng vân
+    // tường và ảnh dán vào — mọi lệnh vẽ đều bị nuốt, chỉ cần không nổ.
     createElement: () => ({
       style: {},
       getContext: () => ctx,
@@ -58,6 +65,16 @@ function dungDom() {
       for (const [t, f] of chuot)
         if (t === 'mousedown' || t === 'mouseup')
           f({ clientX: x, clientY: y, preventDefault() {} });
+    },
+    // Nhấn giữ ở (x,y) rồi rê qua các điểm, cuối cùng nhả ra — dùng để thử kéo xoay.
+    reChuot: (x, y, diem) => {
+      const goi = (loai, cx, cy) => {
+        for (const [t, f] of chuot)
+          if (t === loai) f({ clientX: cx, clientY: cy, preventDefault() {} });
+      };
+      goi('mousedown', x, y);
+      for (const [mx, my] of diem) goi('mousemove', mx, my);
+      goi('mouseup', ...diem[diem.length - 1]);
     },
     chay: (n = 1, buoc = 16) => {
       for (let i = 0; i < n; i++) {
@@ -159,7 +176,7 @@ describe('mecung.js: điểm vào chạy được', () => {
     expect(dom.manHinh()).toContain('🔑'); // HUD hiện trở lại
   });
 
-  it('sai 3 lần vẫn qua được cửa — luật "không bao giờ bế tắc"', async () => {
+  it('sai 3 lần thì MẤT TIM và CỬA VẪN KHOÁ — nhưng quay lại là được hỏi câu khác', async () => {
     const dom = dungDom();
     vi.resetModules();
     const { makeRun } = await import('../src/systems/maze-run.js');
@@ -193,17 +210,68 @@ describe('mecung.js: điểm vào chạy được', () => {
       dom.chay(1);
     }
 
-    // Thử nốt các đáp án còn lại. Dù đáp án đúng nằm ở đâu, hoặc bé sai đủ 3 lần rồi
-    // bấm ENTER, thì CŨNG PHẢI qua được cửa. Không có đường nào dẫn tới bế tắc.
-    for (const phim of ['Digit2', 'Digit3', 'Digit4', 'Enter', 'Enter']) {
+    // Bấm nốt các đáp án còn lại. Câu hỏi nay ra ngẫu nhiên theo LƯỢT CHƠI nên test không
+    // biết trước đáp án đúng nằm ở đâu — kiểm cả hai nhánh, nhánh nào cũng không được kẹt.
+    for (const phim of ['Digit2', 'Digit3', 'Digit4']) {
+      if (!dom.manHinh().includes('CỬA KHOÁ')) break; // đã mò ra đáp án đúng
       dom.goiPhim('keydown', phim);
       dom.chay(1);
     }
-    expect(dom.manHinh()).not.toContain('CỬA KHOÁ');
+    const hetLuot = dom.manHinh().includes('vẫn khoá'); // sai đủ 3 lượt → hiện lời giải
+    dom.goiPhim('keydown', 'Enter');
+    dom.chay(1);
 
-    // Và bằng chứng quan trọng nhất: CHÌA VẪN ĐƯỢC CẤP dù trả lời sai hết.
-    // HUD vẽ "1 / 3" — một chìa trên tổng ba cửa của mức Dễ.
-    expect(dom.manHinh()).toContain('1/3');
+    // Không có đường nào dẫn tới BẾ TẮC: màn câu hỏi luôn đóng lại được, trả về mê cung.
+    expect(dom.manHinh()).not.toContain('CỬA KHOÁ');
+    expect(dom.manHinh()).toContain('🔑');
+    // Nhưng chìa thì KHÔNG còn cho không: sai hết 3 lượt là 0 chìa, phải quay lại cửa.
+    expect(dom.manHinh()).toContain(hetLuot ? '0/3' : '1/3');
+  });
+
+  // GÓC NHÌN NHẬP VAI chạy qua một lối vẽ HOÀN TOÀN KHÁC (raycasting, ảnh dán, bản đồ nhỏ).
+  // Không có test nào bước vào đó thì cả lối ấy có thể vỡ mà bộ kiểm thử vẫn xanh.
+  it('GÓC NHÌN NHẬP VAI: bật lên chơi được, đổi qua lại không vỡ', async () => {
+    const dom = dungDom();
+    vi.resetModules();
+    await import('../src/mecung.js');
+
+    dom.goiPhim('keydown', 'Digit3'); // mức Khó — mê cung 31×31, 5 quái, nặng nhất
+    dom.goiPhim('keydown', 'KeyV'); // sang nhập vai
+    expect(() => dom.chay(5)).not.toThrow();
+    expect(dom.manHinh()).toContain('🔑'); // HUD vẫn vẽ được đè lên khung 3D
+
+    // Đi loạn bằng bàn phím: tiến, quay trái, quay phải, quay lại
+    for (const k of ['ArrowUp', 'ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp']) {
+      dom.goiPhim('keydown', k);
+      expect(() => dom.chay(30)).not.toThrow();
+      dom.goiPhim('keyup', k);
+    }
+
+    // Bấm bốn vùng màn hình + bấm vào bản đồ nhỏ ở góc phải dưới
+    for (const [x, y] of [
+      [100, 300],
+      [800, 300],
+      [450, 200],
+      [450, 600],
+      [800, 560],
+    ]) {
+      dom.bam(x, y);
+      expect(() => dom.chay(20)).not.toThrow();
+    }
+
+    // Kéo chuột xoay: nhấn, rê ngang, nhả — không được vỡ và không được bước đi ngoài ý muốn
+    expect(() => {
+      dom.reChuot(450, 300, [
+        [520, 300],
+        [610, 300],
+        [700, 300],
+      ]);
+      dom.chay(10);
+    }).not.toThrow();
+
+    dom.goiPhim('keydown', 'KeyV'); // về nhìn từ trên xuống
+    expect(() => dom.chay(5)).not.toThrow();
+    expect(dom.manHinh()).toContain('🔑');
   });
 
   it('mặc định là Toán LỚP 1 — bậc thấp nhất, hiện rõ ở cả màn chọn lẫn HUD', async () => {
@@ -280,9 +348,22 @@ describe('mecung.js: điểm vào chạy được', () => {
     });
     expect(dich, 'cần một ngõ cụt không đi ngang cửa khoá').toBeTruthy();
 
-    dom.bam(VIEW.x + (dich.x + 0.5) * u, VIEW.y + (dich.y + 0.5) * u);
-    for (let i = 0; i < 2000 && !dom.manHinh().includes('🪙 | 1'); i++) dom.chay(1);
+    // MỘT LẦN BẤM = MỘT Ô. Bấm lại nhiều lần về phía đích, đúng như người chơi thật.
+    let lan = 0;
+    for (; lan < 200 && !dom.manHinh().includes('🪙 | 1'); lan++) {
+      dom.bam(VIEW.x + (dich.x + 0.5) * u, VIEW.y + (dich.y + 0.5) * u);
+      for (let i = 0; i < 120 && !dom.manHinh().includes('🪙 | 1'); i++) dom.chay(1);
+    }
     expect(dom.manHinh()).toContain('🪙 | 1');
+
+    // BẤT BIẾN: một lần bấm đi TỐI ĐA một ô, nên số lần bấm không bao giờ ÍT HƠN số ô phải
+    // đi. Ít hơn nghĩa là còn sót chỗ đi một mạch nhiều ô.
+    // Cố ý KHÔNG canh "đúng bằng": mức Dễ có một con quái, mà bấm vào vùng quanh quái thì
+    // thành lệnh CHÉM chứ không phải lệnh đi (hành vi cố ý, có từ trước). Quái đi tuần nên
+    // số lần bấm bị nuốt đổi theo từng ván — canh bằng đúng là test đỏ ngẫu nhiên.
+    const soO =
+      solve(guong.maze, guong.maze.start.x, guong.maze.start.y, dich.x, dich.y).length - 1;
+    expect(lan, `${lan} lần bấm cho ${soO} ô`).toBeGreaterThanOrEqual(soO);
   });
 
   // Mở cửa hàng từ màn thắng rồi đóng lại thì phải VỀ ĐÚNG màn thắng, không rơi ra màn chọn

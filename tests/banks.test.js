@@ -1,7 +1,7 @@
 ﻿import { describe, it, expect } from 'vitest';
 import { BO_DE, timBoDe, capHopLe } from '../src/data/banks.js';
 import { taoBoDe } from '../src/data/questions/bank.js';
-import { TRANG_NGUYEN } from '../src/data/questions/trang-nguyen.js';
+import { TRANG_NGUYEN, NHOM_TN } from '../src/data/questions/trang-nguyen.js';
 import { OLYMPIA } from '../src/data/questions/olympia.js';
 import { makeRng } from '../src/core/rng.js';
 
@@ -107,7 +107,9 @@ describe('questions/bank: biến tự luận thành trắc nghiệm', () => {
     const tn = timBoDe('trangnguyen');
     const rng = makeRng(3);
     const nhomCua = Object.fromEntries(TRANG_NGUYEN.map((c) => [c.ans, c.nhom]));
-    for (const nhom of ['convat', 'dochu', 'dodung'])
+    // Bám theo NHOM_TN chứ không chốt cứng ba nhóm: thêm nhóm mới mà quên kiểm là đúng
+    // kiểu lỗi lặng lẽ mà phép canh này sinh ra để bắt.
+    for (const nhom of NHOM_TN.map((n) => n.id).filter((n) => n !== 'tatca'))
       for (const id of tn.ids(nhom)) {
         const q = tn.sinh(id, rng);
         for (const o of q.a)
@@ -173,8 +175,18 @@ describe('dữ liệu nguồn', () => {
   });
 
   it('mỗi nhóm Trạng Nguyên có đủ câu để làm mồi nhử cho nhau (≥ 5)', () => {
-    for (const n of ['convat', 'dochu', 'dodung'])
+    for (const n of NHOM_TN.map((x) => x.id).filter((x) => x !== 'tatca'))
       expect(TRANG_NGUYEN.filter((c) => c.nhom === n).length, n).toBeGreaterThanOrEqual(5);
+  });
+
+  // Mồi nhử bốc chéo trong nhóm, mà bảng tra nhóm lập theo ĐÁP ÁN. Hai câu khác nhóm dùng
+  // chung một chuỗi đáp án sẽ làm bảng tra sai, và phép canh "mồi nhử cùng nhóm" mù luôn.
+  it('Trạng Nguyên: không hai câu nào trùng đáp án', () => {
+    const gap = new Map();
+    for (const c of TRANG_NGUYEN) {
+      expect(gap.has(c.ans), `"${c.ans}" dùng ở cả ${gap.get(c.ans)} và ${c.id}`).toBe(false);
+      gap.set(c.ans, c.id);
+    }
   });
 
   it('Olympia: mọi câu có đủ 3 mồi nhử VIẾT TAY, không trùng đáp án', () => {
@@ -230,10 +242,34 @@ describe('dữ liệu nguồn', () => {
     }
   });
 
-  it('mỗi nhóm Olympia có ít nhất 5 câu để chơi được ra hồn', () => {
+  // Cửa sổ chống lặp của hộp Leitner rộng bằng NỬA số câu trong nhóm. Nhóm 8 câu thì cửa
+  // sổ chỉ 4 — đi vài cửa là gặp lại câu cũ. Nay sai còn mất tim nên bé quay lại cửa nhiều
+  // hơn hẳn, nhóm mỏng sẽ lộ ngay. Mười lăm câu mỗi nhóm là mức sàn.
+  it('mỗi nhóm Olympia có ít nhất 15 câu để không lặp lại sớm', () => {
     const dem = {};
     for (const c of OLYMPIA) dem[c.nhom] = (dem[c.nhom] || 0) + 1;
-    for (const [n, s] of Object.entries(dem)) expect(s, `nhóm ${n}`).toBeGreaterThanOrEqual(5);
+    for (const [n, s] of Object.entries(dem)) expect(s, `nhóm ${n}`).toBeGreaterThanOrEqual(15);
+  });
+
+  it('không câu nào bị chép hai lần (cả Olympia lẫn Trạng Nguyên)', () => {
+    for (const bo of [OLYMPIA, TRANG_NGUYEN]) {
+      const gap = new Map();
+      for (const c of bo) {
+        expect(gap.has(c.q), `trùng đề: ${gap.get(c.q)} và ${c.id}`).toBe(false);
+        gap.set(c.q, c.id);
+      }
+    }
+  });
+
+  // Mồi nhử phải SAI. Nếu một mồi nhử lại chính là đáp án đúng của câu khác CÙNG NHÓM thì
+  // rất dễ là do chép nhầm, và bé trả lời đúng vẫn bị tính sai ở câu kia.
+  it('Olympia: đáp án đúng không trùng nhau trong cùng một nhóm', () => {
+    const gap = new Map();
+    for (const c of OLYMPIA) {
+      const k = c.nhom + '|' + c.ans;
+      expect(gap.has(k), `nhóm ${c.nhom}: "${c.ans}" ở cả ${gap.get(k)} và ${c.id}`).toBe(false);
+      gap.set(k, c.id);
+    }
   });
 });
 

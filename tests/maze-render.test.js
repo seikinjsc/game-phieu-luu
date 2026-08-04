@@ -303,13 +303,23 @@ describe('render/maze: vẽ được, không vỡ', () => {
     for (const o of cau.a) expect(ctx.calls).toContain('fillText:' + o);
   });
 
-  it('sai 3 lần thì màn câu hỏi hiện LỜI GIẢI và lối thoát', () => {
+  it('sai 3 lần thì màn câu hỏi hiện LỜI GIẢI và nói rõ CỬA VẪN KHOÁ', () => {
     const ctx = mockCtx();
     const cau = { q: '1/2 + 1/3 = ?', a: ['5/6', '2/5', '3/5', '1/6'], k: 0, why: 'Quy đồng mẫu.' };
     drawQuestion(ctx, cau, [1, 2, 3], true);
     expect(ctx.calls.some((c) => c.startsWith('fillText:Quy đồng'))).toBe(true);
-    expect(ctx.calls.some((c) => c.toLowerCase().includes('cửa vẫn mở'))).toBe(true);
-    expect(ctx.calls.some((c) => c.includes('Đi tiếp'))).toBe(true); // có NÚT để bấm đi tiếp
+    expect(ctx.calls.some((c) => c.toLowerCase().includes('vẫn khoá'))).toBe(true);
+    expect(ctx.calls.some((c) => c.includes('Quay lại thử sau'))).toBe(true); // có NÚT để thoát
+  });
+
+  // Màn câu hỏi phủ kín HUD, mà từ nay SAI LÀ MẤT TIM — phải vẽ lại dãy tim ngay tại đây,
+  // không thì bé không thấy mình đang mất gì.
+  it('màn câu hỏi vẽ dãy TIM, tim đã mất thì mờ đi', () => {
+    const ctx = mockCtx();
+    const cau = { q: '2 + 2 = ?', a: ['4', '3', '5', '22'], k: 0, why: '' };
+    drawQuestion(ctx, cau, [1], false, { tim: 2, timToiDa: 4 });
+    expect(ctx.calls.filter((c) => c === 'fillText:❤️').length).toBe(4);
+    expect(ctx.globalAlpha).toBe(1); // trả lại alpha, không rò sang phần vẽ sau
   });
 
   it('đề bài và lời giải DÀI vẫn không vẽ tràn ra ngoài canvas', () => {
@@ -338,5 +348,301 @@ describe('render/maze: vẽ được, không vỡ', () => {
     drawOverlay(ctx, 'Xin chào', ['dòng 1', 'dòng 2']);
     expect(ctx.calls).toContain('fillText:Xin chào');
     expect(ctx.calls).toContain('fillText:dòng 2');
+  });
+});
+
+// Quy đổi toạ độ bản đồ nhỏ — phép tính lệch một ô là bấm một đằng đi một nẻo, mà nhìn
+// bằng mắt thì gần như không phát hiện ra. Kiểm khứ hồi: tâm mỗi ô phải trả về đúng ô đó.
+describe('render/maze3d: bấm vào bản đồ nhỏ', () => {
+  it('tâm mỗi ô trên bản đồ nhỏ quy đổi về đúng ô đó', async () => {
+    const { oTuBanDo, BAN_DO_K } = await import('../src/render/maze3d.js');
+    const { W, H } = await import('../src/ui/mecung-ui.js');
+    for (const size of [15, 21, 31]) {
+      const s = VIEW.s * BAN_DO_K;
+      const mx = W - s - 12,
+        my = H - s - 12;
+      const u = s / size;
+      for (let y = 0; y < size; y++)
+        for (let x = 0; x < size; x++) {
+          const o = oTuBanDo({ x: mx + (x + 0.5) * u, y: my + (y + 0.5) * u }, size);
+          expect(o, `ô ${x},${y} của lưới ${size}`).toEqual({ x, y });
+        }
+    }
+  });
+
+  it('bấm ra NGOÀI bản đồ nhỏ thì trả null, không đoán bừa một ô', async () => {
+    const { oTuBanDo, BAN_DO_K } = await import('../src/render/maze3d.js');
+    const { W, H } = await import('../src/ui/mecung-ui.js');
+    const s = VIEW.s * BAN_DO_K;
+    const mx = W - s - 12,
+      my = H - s - 12;
+    for (const p of [
+      { x: 10, y: 10 }, // góc trên trái — giữa khung nhìn 3D
+      { x: W / 2, y: H / 2 }, // chính giữa màn hình
+      { x: mx - 1, y: my + 5 }, // sát mép trái bản đồ
+      { x: mx + 5, y: my - 1 }, // sát mép trên bản đồ
+      { x: mx + s, y: my + 5 }, // vừa quá mép phải
+      { x: mx + 5, y: my + s }, // vừa quá mép dưới
+    ])
+      expect(oTuBanDo(p, 21), `${p.x},${p.y}`).toBe(null);
+  });
+});
+
+// Quy vùng bấm về hướng đi ở góc nhìn nhập vai. Trục màn hình có y hướng XUỐNG nên phép
+// quay 90° rất dễ nhầm dấu — mà nhầm thì bấm trái đi phải, đọc code không tài nào thấy.
+describe('render/maze3d: bấm vào thế giới 3D để đi', () => {
+  const DONG = { x: 1, y: 0 },
+    TAY = { x: -1, y: 0 },
+    BAC = { x: 0, y: -1 },
+    NAM = { x: 0, y: 1 };
+
+  it('bấm bên trái/phải màn hình là rẽ trái/phải SO VỚI HƯỚNG ĐANG NHÌN', async () => {
+    const { huongTuDiemBam } = await import('../src/render/maze3d.js');
+    // Nhìn về đông (phải trên bản đồ): trái của mình là bắc, phải của mình là nam.
+    const traiCua = { đông: BAC, nam: DONG, tây: NAM, bắc: TAY };
+    const phaiCua = { đông: NAM, nam: TAY, tây: BAC, bắc: DONG };
+    const huong = { đông: DONG, nam: NAM, tây: TAY, bắc: BAC };
+    for (const [ten, f] of Object.entries(huong)) {
+      expect(huongTuDiemBam({ x: 100, y: 300 }, f), `nhìn ${ten}, bấm trái`).toEqual(traiCua[ten]);
+      expect(huongTuDiemBam({ x: 800, y: 300 }, f), `nhìn ${ten}, bấm phải`).toEqual(phaiCua[ten]);
+    }
+  });
+
+  it('bấm giữa là ĐI THẲNG, bấm giữa-thấp là QUAY LẠI', async () => {
+    const { huongTuDiemBam, VUNG_LUI } = await import('../src/render/maze3d.js');
+    for (const f of [DONG, TAY, BAC, NAM]) {
+      expect(huongTuDiemBam({ x: 450, y: 200 }, f)).toEqual(f);
+      // `|| 0` để kỳ vọng không tự sinh ra −0 — đúng thứ mà chính phép quy đổi phải tránh.
+      expect(huongTuDiemBam({ x: 450, y: VUNG_LUI + 40 }, f)).toEqual({
+        x: -f.x || 0,
+        y: -f.y || 0,
+      });
+    }
+  });
+
+  // Bốn vùng phải phủ KÍN khung nhìn và mỗi điểm chỉ thuộc đúng một vùng — chỗ hở là bấm
+  // vào đó không có gì xảy ra, mà người chơi thì không biết vì sao.
+  it('mọi điểm trong khung nhìn đều rơi vào đúng một hướng đi được', async () => {
+    const { huongTuDiemBam } = await import('../src/render/maze3d.js');
+    const hop = [DONG, TAY, BAC, NAM].map((d) => JSON.stringify(d));
+    for (let x = 0; x < W; x += 25)
+      for (let y = 60; y < H; y += 25) {
+        const d = huongTuDiemBam({ x, y }, DONG);
+        expect(hop, `điểm ${x},${y}`).toContain(JSON.stringify(d));
+      }
+  });
+});
+
+// Nhìn tự do bằng kéo chuột: góc nhìn liên tục, nhưng nhân vật chỉ đi được BỐN hướng nên
+// phải chốt về hướng gần nhất. Chốt lệch một nấc là kéo nhìn xong bấm tiến lại đi ngang.
+describe('render/maze3d: chốt góc nhìn tự do về bốn hướng', () => {
+  it('mọi góc đều chốt về đúng hướng gần nhất, kể cả góc ÂM và góc quay nhiều vòng', async () => {
+    const { huongNhin } = await import('../src/render/maze3d.js');
+    const goc = (d) => (d * Math.PI) / 180;
+    const ten = (h) => `${h.x},${h.y}`;
+    // 0° = đông · 90° = nam (trục y hướng xuống) · 180° = tây · 270° = bắc
+    const mong = [
+      [0, '1,0'],
+      [40, '1,0'],
+      [50, '0,1'],
+      [90, '0,1'],
+      // 135° đúng là ranh giới nam/tây — hoà, ngả về bên nào cũng được. Canh HAI BÊN ranh
+      // giới thay vì canh đúng điểm hoà: canh điểm hoà chỉ chốt cứng một chi tiết vô nghĩa.
+      [134, '0,1'],
+      [136, '-1,0'],
+      [180, '-1,0'],
+      [270, '0,-1'],
+      [-90, '0,-1'],
+      [-180, '-1,0'],
+      [360, '1,0'],
+      [720 + 90, '0,1'], // quay mấy vòng rồi vẫn phải đúng
+      [-720 - 90, '0,-1'],
+    ];
+    for (const [d, k] of mong) expect(ten(huongNhin(goc(d))), `${d}°`).toBe(k);
+  });
+
+  it('không góc nào cho ra hướng chéo hay hướng đứng yên', async () => {
+    const { huongNhin } = await import('../src/render/maze3d.js');
+    for (let d = -1080; d <= 1080; d += 3) {
+      const h = huongNhin((d * Math.PI) / 180);
+      expect(Math.abs(h.x) + Math.abs(h.y), `${d}°`).toBe(1);
+    }
+  });
+});
+
+// Bốn hướng tương đối là nguồn CHUNG cho cả chuột lẫn bàn phím ở góc nhìn nhập vai.
+// Sai một phép quay ở đây là bấm phím trái đi một đằng, bấm chuột bên trái đi một nẻo.
+describe('render/maze3d: bốn hướng tương đối', () => {
+  it('quay trái rồi quay trái nữa là quay lại; quay trái rồi phải là về chỗ cũ', async () => {
+    const { huongTuongDoi } = await import('../src/render/maze3d.js');
+    for (const f of [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ]) {
+      const r = huongTuongDoi(f);
+      expect(r.thang, 'thẳng là chính hướng đang nhìn').toEqual(f);
+      expect(huongTuongDoi(r.trai).trai, 'trái hai lần = lùi').toEqual(r.lui);
+      expect(huongTuongDoi(r.trai).phai, 'trái rồi phải = về chỗ cũ').toEqual(r.thang);
+      expect(huongTuongDoi(r.lui).lui, 'lùi hai lần = về chỗ cũ').toEqual(r.thang);
+      // Bốn hướng phải KHÁC nhau đôi một, và đều là hướng đi được (không chéo, không đứng yên)
+      const bo = new Set([r.thang, r.lui, r.trai, r.phai].map((d) => `${d.x},${d.y}`));
+      expect(bo.size, 'bốn hướng phải khác nhau').toBe(4);
+      for (const d of [r.thang, r.lui, r.trai, r.phai])
+        expect(Math.abs(d.x) + Math.abs(d.y)).toBe(1);
+    }
+  });
+
+  it('chuột và bàn phím dùng CHUNG một phép quay, không lệch nhau', async () => {
+    const { huongTuongDoi, huongTuDiemBam, VUNG_LUI } = await import('../src/render/maze3d.js');
+    for (const f of [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ]) {
+      const r = huongTuongDoi(f);
+      expect(huongTuDiemBam({ x: 100, y: 300 }, f)).toEqual(r.trai);
+      expect(huongTuDiemBam({ x: 800, y: 300 }, f)).toEqual(r.phai);
+      expect(huongTuDiemBam({ x: 450, y: 200 }, f)).toEqual(r.thang);
+      expect(huongTuDiemBam({ x: 450, y: VUNG_LUI + 40 }, f)).toEqual(r.lui);
+    }
+  });
+});
+
+// Camera có trạng thái thật (cờ "đang nhìn tự do"), nên phải có phép canh: quên xoá cờ là
+// camera không bao giờ bám lại hướng người, còn xoá nhầm là vừa buông tay đã bật về chỗ cũ.
+describe('render/maze3d: camera nhìn tự do', () => {
+  const runGia = (f) => ({ facing: f });
+
+  it('xoay cộng đúng góc đã kéo, và kéo tiếp thì cộng dồn', async () => {
+    const { makeCam } = await import('../src/render/maze3d.js');
+    const cam = makeCam(runGia({ x: 1, y: 0 })); // nhìn đông → yaw = 0
+    expect(cam.yaw).toBeCloseTo(0);
+    cam.xoay(0.5);
+    expect(cam.yaw).toBeCloseTo(0.5);
+    cam.xoay(-1.25);
+    expect(cam.yaw).toBeCloseTo(-0.75);
+  });
+
+  it('đã tự xoay thì update KHÔNG kéo về; gọi bamTheo mới bám lại hướng người', async () => {
+    const { makeCam } = await import('../src/render/maze3d.js');
+    const r = runGia({ x: 1, y: 0 });
+    const cam = makeCam(r);
+    cam.xoay(1);
+    for (let i = 0; i < 60; i++) cam.update(r, 1 / 60);
+    expect(cam.yaw, 'đang nhìn tự do: phải giữ nguyên góc').toBeCloseTo(1);
+    cam.bamTheo();
+    for (let i = 0; i < 120; i++) cam.update(r, 1 / 60);
+    expect(cam.yaw, 'bám lại rồi: phải về đúng hướng người').toBeCloseTo(0, 2);
+  });
+
+  it('quay về hướng ngược lại đi theo cung NGẮN NHẤT, không lộn một vòng', async () => {
+    const { makeCam } = await import('../src/render/maze3d.js');
+    const r = runGia({ x: -1, y: 0 }); // nhìn tây → yaw đích = π
+    const cam = makeCam(runGia({ x: 1, y: 0 }));
+    cam.xoay(-3); // gần −π, tức là sát đích nhưng ở phía bên kia vạch ±π
+    cam.bamTheo();
+    const truoc = cam.yaw;
+    cam.update(r, 1 / 60);
+    // Đi cung ngắn nhất thì bước đầu tiên phải nhỏ; đi vòng ngược sẽ nhảy một bước rất lớn.
+    expect(Math.abs(cam.yaw - truoc)).toBeLessThan(0.1);
+  });
+});
+
+// ẢNH DÁN + BỘ ĐỆM ĐỘ SÂU. Đây là chỗ dễ hỏng nhất của raycasting: quên so độ sâu là quái
+// đứng sau tường vẫn hiện lù lù, mà nhìn ảnh chụp màn hình thì rất khó nhận ra ngay.
+describe('render/maze3d: vật thể trên đường đi', () => {
+  // maze3d sinh vân tường và ảnh dán vào canvas ẩn ngay lần vẽ đầu → cần một `document`
+  // tối thiểu. `getContext` trả null là đủ: mã sinh ảnh có nhánh dự phòng cho môi trường
+  // không có DOM thật, và phép đo ở đây chỉ đếm lệnh trên ctx BÊN NGOÀI.
+  globalThis.document ||= {
+    createElement: () => ({ width: 0, height: 0, getContext: () => null }),
+  };
+
+  // ctx đếm riêng cột TƯỜNG và cột ẢNH DÁN. Phân biệt bằng chữ ký: tường luôn cắt bề rộng
+  // nguồn đúng 1 điểm ảnh, ảnh dán thì cắt theo tỉ lệ nên gần như không bao giờ bằng 1.
+  const ctxDem = () => {
+    const d = { tuong: 0, dan: 0 };
+    return new Proxy(
+      {
+        dem: d,
+        drawImage: (img, sx, sy, sw) => (sw === 1 ? d.tuong++ : d.dan++),
+        createLinearGradient: () => ({ addColorStop() {} }),
+        globalAlpha: 1,
+        fillStyle: '',
+      },
+      { get: (t, k) => (k in t ? t[k] : () => {}), set: (t, k, v) => ((t[k] = v), true) },
+    );
+  };
+
+  // Hành lang thẳng theo trục x ở hàng y = 2, ô 1..3 đi được. `chan` để bịt ô giữa lại.
+  const theGia = (chan) => ({
+    x: 1.5,
+    y: 2.5,
+    time: 0,
+    keys: 0,
+    needKeys: 1,
+    facing: { x: 1, y: 0 },
+    quai: [],
+    isOpen: () => false,
+    hasCoin: () => true,
+    maze: {
+      size: 5,
+      exit: { x: 1, y: 2 }, // ngay dưới chân người chơi → tự bị loại, không nhiễu phép đo
+      gates: [],
+      bonus: [],
+      coins: [{ x: 3, y: 2 }],
+      isWall: (x, y) => y !== 2 || x < 1 || x > 3 || (chan && x === 2),
+    },
+  });
+
+  it('xu ở cuối hành lang trống thì ĐƯỢC vẽ', async () => {
+    const { drawMaze3D, makeCam } = await import('../src/render/maze3d.js');
+    const run = theGia(false);
+    const ctx = ctxDem();
+    drawMaze3D(ctx, run, makeCam(run), 'khoivuong', 99);
+    expect(ctx.dem.tuong, 'phải dựng được tường').toBeGreaterThan(0);
+    expect(ctx.dem.dan, 'xu trong tầm nhìn thẳng phải hiện ra').toBeGreaterThan(0);
+  });
+
+  it('xu bị TƯỜNG CHE thì KHÔNG được vẽ — bộ đệm độ sâu phải chặn', async () => {
+    const { drawMaze3D, makeCam } = await import('../src/render/maze3d.js');
+    const run = theGia(true); // bịt ô giữa hành lang
+    const ctx = ctxDem();
+    drawMaze3D(ctx, run, makeCam(run), 'khoivuong', 99);
+    expect(ctx.dem.tuong).toBeGreaterThan(0);
+    expect(ctx.dem.dan, 'xu nằm sau tường mà vẫn vẽ = quên so độ sâu').toBe(0);
+  });
+
+  it('vật thể SAU LƯNG không được vẽ', async () => {
+    const { drawMaze3D, makeCam } = await import('../src/render/maze3d.js');
+    const run = theGia(false);
+    run.facing = { x: -1, y: 0 }; // quay lưng lại phía có xu
+    const ctx = ctxDem();
+    drawMaze3D(ctx, run, makeCam(run), 'khoivuong', 99);
+    expect(ctx.dem.dan).toBe(0);
+  });
+
+  it('không vẽ ra ngoài khung nhìn dù vật thể sát mặt', async () => {
+    const { drawMaze3D, makeCam } = await import('../src/render/maze3d.js');
+    const run = theGia(false);
+    run.maze.coins = [{ x: 1, y: 2 }]; // xu ngay dưới chân → phóng to cực đại
+    run.x = 1.2; // lệch khỏi tâm ô một chút để không bị loại vì quá gần
+    const ngoai = [];
+    const ctx = new Proxy(
+      {
+        dem: { tuong: 0, dan: 0 },
+        drawImage: (img, sx, sy, sw, sh, dx, dy, dw) => {
+          if (dx < 0 || dx + dw > 900) ngoai.push(dx);
+        },
+        createLinearGradient: () => ({ addColorStop() {} }),
+        globalAlpha: 1,
+      },
+      { get: (t, k) => (k in t ? t[k] : () => {}), set: (t, k, v) => ((t[k] = v), true) },
+    );
+    drawMaze3D(ctx, run, makeCam(run), 'khoivuong', 99);
+    expect(ngoai, `${ngoai.length} cột vẽ tràn ra ngoài mép`).toEqual([]);
   });
 });

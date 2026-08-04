@@ -170,8 +170,12 @@ describe('progress: lưu ván và tiến trình ôn tập qua các buổi chơi'
 describe('ui: màn tạm dừng', () => {
   const nut = nutTamDung();
 
+  // Canh CÓ ĐỦ bốn lựa chọn, không canh "chỉ có đúng bốn": màn tạm dừng còn mang thêm mấy
+  // nút hiển thị (góc nhìn, đồng hồ FPS) vốn không đụng gì tới ván đang chơi. Canh bằng
+  // toEqual thì thêm một nút hiển thị là đỏ, mà đỏ kiểu đó chẳng nói lên điều gì hỏng cả.
   it('có đủ bốn lựa chọn như game Phiêu Lưu', () => {
-    expect(nut.map((b) => b.id).sort()).toEqual(['boVan', 'lai', 'luuThoat', 'tiepTuc'].sort());
+    const ids = nut.map((b) => b.id);
+    for (const can of ['tiepTuc', 'lai', 'luuThoat', 'boVan']) expect(ids).toContain(can);
   });
 
   it('nút nằm gọn trong khung, đủ to, không chồng nhau', () => {

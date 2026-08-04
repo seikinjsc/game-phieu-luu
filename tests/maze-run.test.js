@@ -214,13 +214,45 @@ describe('systems/maze-run: mục tiêu và luật thắng', () => {
   });
 
   // LUẬT CỨNG của cả dự án. Nếu test này đỏ thì đã làm hỏng thứ quan trọng nhất.
-  it('TRẢ LỜI SAI VẪN MỞ CỬA — không bao giờ chặn đường, chỉ mất sao và mất thời gian', () => {
+  it('HẾT LƯỢT TRẢ LỜI thì cửa VẪN KHOÁ — nhưng thử lại được ngay, không bế tắc', () => {
     const run = makeRun(5, 1);
     const g = run.maze.gates[0];
-    diTheo(run, solve(run.maze, run.maze.start.x, run.maze.start.y, g.x, g.y), 20000, false);
-    expect(run.keys).toBe(1); // vẫn có chìa
-    expect(run.isOpen(g.id)).toBe(true); // cửa vẫn mở
-    expect(run.stars).toBe(0); // nhưng không được sao
+    const duong = solve(run.maze, run.maze.start.x, run.maze.start.y, g.x, g.y);
+    diTheo(run, duong, 20000, true, false); // đi tới cửa rồi dừng, tự tay trả lời
+    run.resolve(false, 45, false); // sai hết 3 lượt → không mở
+    expect(run.keys).toBe(0); // chưa có chìa
+    expect(run.isOpen(g.id)).toBe(false); // cửa vẫn khoá
+    expect(run.stars).toBe(0);
+    // Và quay lại đúng cửa đó thì được hỏi lại — đường ra không bao giờ bị đóng vĩnh viễn.
+    diTheo(run, [{ x: g.x, y: g.y }, duong[duong.length - 2]], 20000, true, false);
+    diTheo(run, [duong[duong.length - 2], { x: g.x, y: g.y }], 20000, true, false);
+    expect(run.pending).toEqual(g);
+    run.resolve(true, 0, true);
+    expect(run.keys).toBe(1);
+  });
+
+  it('trả lời SAI vẫn được đi qua ô "?" thưởng — quà thì không phải cửa ải', () => {
+    const run = makeRun(5, 1);
+    const o = run.maze.bonus[0];
+    diTheo(run, solve(run.maze, run.maze.start.x, run.maze.start.y, o.x, o.y), 20000, true, false);
+    expect(run.pending).toEqual(o);
+    run.resolve(false, 0, false); // dù bảo "đừng mở", ô thưởng vẫn coi như dùng xong
+    expect(run.isOpen(o.id)).toBe(true);
+    expect(run.stars).toBe(0); // sao chỉ tính cho cửa khoá
+  });
+
+  it('trả lời sai MẤT MỘT TIM; hết tim thì về chỗ an toàn với đủ tim, không thua', () => {
+    const run = makeRun(5, 1);
+    const dayTim = run.timToiDa;
+    expect(run.tim).toBe(dayTim);
+    for (let i = 1; i < dayTim; i++) {
+      expect(run.matTim()).toBe(false);
+      expect(run.tim).toBe(dayTim - i);
+    }
+    expect(run.matTim()).toBe(true); // tim cuối cùng
+    expect(run.tim).toBe(dayTim); // đã hồi sinh, đầy tim trở lại
+    expect(run.hoiSinh).toBe(1);
+    expect(run.won).toBe(false);
   });
 
   it('trả lời đúng thì được sao; phạt thời gian cộng vào đồng hồ', () => {

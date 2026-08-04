@@ -1,10 +1,12 @@
 ﻿// mecung.js — điểm vào chế độ MÊ CUNG TRI THỨC.
 //
 // M1: đi mê cung, gom chìa, tìm cửa ra. M2: cửa khoá hỏi câu hỏi Toán lớp 1–5.
-// M2b: điều khiển bằng CHUỘT — nút bấm kiểu game Phiêu Lưu, và bấm ô để tự đi tới đó.
+// M2b: điều khiển bằng CHUỘT — nút bấm kiểu game Phiêu Lưu, và bấm để bước từng ô một.
 //
 // Ba luật cứng của vòng chơi (ME-CUNG-DESIGN.md §2), đừng sửa nếu chưa đọc lại phần đó:
-//   1. Sai KHÔNG BAO GIỜ dẫn tới bế tắc — sai 3 lần thì hiện lời giải và VẪN mở cửa.
+//   1. Sai LÀ MẤT MỘT TIM. Tối đa 3 lượt cho mỗi câu; hết 3 lượt thì đọc lời giải và
+//      CỬA VẪN KHOÁ — phải quay lại trả lời tiếp, lần sau là câu hỏi khác.
+//      Vẫn không có bế tắc: hết tim thì về chỗ an toàn gần nhất với ĐỦ tim, thử lại được mãi.
 //   2. Mê cung tự nó đã vui; câu hỏi là gia vị, không phải thuế.
 //   3. Không bao giờ mất tiến trình.
 //
@@ -40,6 +42,17 @@ import {
   MUC_AM,
 } from './ui/mecung-ui.js';
 import { VIEW } from './render/maze.js';
+import {
+  drawMaze3D,
+  veBanDoNho,
+  veHuongBam,
+  oTuBanDo,
+  huongTuDiemBam,
+  huongTuongDoi,
+  huongNhin,
+  makeCam,
+  DO_NHAY,
+} from './render/maze3d.js';
 import { makeProgress } from './systems/progress.js';
 import { THUONG, PHAT_GIAY_SAI } from './data/rewards.js';
 import { CUA_HANG, chiSo } from './data/shop.js';
@@ -62,7 +75,7 @@ import {
 
 import { W, H } from './ui/mecung-ui.js';
 const RS = 1.5; // hệ số nét khi phóng to, đúng quy ước dự án
-const TOI_DA_SAI = 3; // sai đủ số lần này thì hiện lời giải và cho qua
+const TOI_DA_SAI = 3; // hết số lượt này thì hiện lời giải, và cửa khoá vẫn khoá
 
 const cv = document.createElement('canvas');
 cv.width = W * RS;
@@ -93,6 +106,54 @@ let cau = null, // câu đang hỏi
 let dangBam = null; // nút đang bị nhấn giữ, để vẽ hiệu ứng lún
 let shopTuDau = 'chon'; // mở cửa hàng từ màn nào, để đóng thì trả về đúng đó
 let duongTuDi = null; // đường đang tự đi sau khi bấm chuột vào một ô
+
+// ── Góc nhìn nhập vai (docs/ME-CUNG-3D.md) ──────────────────────────────────
+// Hai góc nhìn SỐNG SONG SONG, không thay thế nhau: bản nhìn từ trên xuống là đường lùi cho
+// máy yếu, cho màn hình chia đôi hai người, và cho bé chưa quen góc nhìn nhập vai.
+// Lựa chọn được LƯU trong ví (`vi.gocNhin`) nên mở game lần sau không phải chọn lại.
+// Bấm được ở màn chọn và ở đáy trái lúc đang chơi; phím V vẫn giữ làm lối tắt.
+let cam = null; // góc nhìn, chỉ tồn tại khi đang ở trong mê cung
+// Đang giữ chuột kéo để xoay: {x: hoành độ lần trước, tong: tổng quãng đã kéo}.
+// `tong` để phân biệt KÉO với BẤM — nhả chuột sau khi đã kéo thì không phải lệnh đi.
+let keo = null;
+const NGUONG_KEO = 6; // kéo dưới 6 điểm ảnh vẫn tính là bấm; tay ai cũng rung một chút
+
+// Đồng hồ FPS. Bản `legacy/` có sẵn, `src/` thì chưa — mà không đo được thì không biết
+// mình đang làm hỏng cái gì. Phải có TRƯỚC khi tin bất cứ con số hiệu năng nào.
+let hienFps = 0,
+  demKhung = 0,
+  donKhung = 0,
+  fps = 0,
+  msVe = 0; // thời gian THẬT tiêu trong một khung, mili giây
+
+function nhipFps(dt) {
+  demKhung++;
+  donKhung += dt;
+  if (donKhung < 0.5) return;
+  fps = Math.round(demKhung / donKhung);
+  demKhung = 0;
+  donKhung = 0;
+}
+
+// Vẽ ở đáy trái — vùng duy nhất không đụng thanh thông tin, nút, hay bản đồ nhỏ ở đáy phải.
+function veFps(ctx) {
+  if (!hienFps) return;
+  ctx.font = '900 15px system-ui,sans-serif';
+  ctx.textAlign = 'left';
+  // Tô màu theo NGÂN SÁCH, không theo fps: ngân sách một khung là 1000/fps mili giây, và
+  // thứ đáng lo là phần đã tiêu, chứ fps thì bị chặn theo màn hình nên lúc nào cũng đẹp.
+  const nganSach = 1000 / Math.max(30, fps || 60);
+  const phan = msVe / nganSach;
+  ctx.fillStyle = phan < 0.4 ? '#3ddc84' : phan < 0.7 ? '#ffb300' : '#ff7a59';
+  ctx.fillText(
+    `${fps} fps · ${msVe.toFixed(1)}/${nganSach.toFixed(1)} ms (${Math.round(phan * 100)}%) · ` +
+      `${vi.gocNhin ? 'nhập vai' : 'trên xuống'}`,
+    12,
+    H - 12,
+  );
+}
+
+const doiGocNhin = () => vi.datGocNhin(!vi.gocNhin);
 
 const vi = makeProgress(); // ví xu + điểm + mức âm lượng, sống qua nhiều ván
 
@@ -140,6 +201,15 @@ const trangThaiMenu = () => ({
   moBoDe: timBoDe(boDeId).mo,
   mucNhac: vi.amNhac,
   mucTieng: vi.amTieng,
+  nhapVai: vi.gocNhin,
+});
+
+// Trạng thái các nút hiện lúc đang đi trong mê cung. Gom vào một chỗ vì cả phần bắt chuột
+// lẫn phần vẽ đều dùng — tách đôi là có ngày bấm một đằng vẽ một nẻo.
+const trangThaiMeCung = () => ({
+  mucNhac: vi.amNhac,
+  mucTieng: vi.amTieng,
+  nhapVai: vi.gocNhin,
 });
 let thuongCuoi = null; // bảng kê thưởng của ván vừa xong, để hiện ở màn thắng
 const dongThang = () => [
@@ -153,10 +223,10 @@ const dongThang = () => [
 function nutHienTai() {
   if (man === 'chon') return nutManChon(trangThaiMenu());
   if (man === 'shop') return nutCuaHang(monShop(), vi.xu);
-  if (man === 'tam') return nutTamDung();
-  if (man === 'hoi') return nutCauHoi({ dapAn: cau.a, k: cau.k, sai, loiGiai });
+  if (man === 'tam') return nutTamDung({ hienFps, nhapVai: vi.gocNhin });
+  if (man === 'hoi') return nutCauHoi({ dapAn: cau.a, k: cau.k, sai, loiGiai, thuong: cau.thuong });
   if (man === 'thang') return nutManThang();
-  return nutTrongMeCung({ mucNhac: vi.amNhac, mucTieng: vi.amTieng });
+  return nutTrongMeCung(trangThaiMeCung());
 }
 
 // Chém con quái trước mặt. Hạ được thì thưởng xu — đó là lý do đáng đánh nhau thay vì né.
@@ -212,7 +282,12 @@ function batDau(seed, m = muc, napLai = null) {
     speed: MAZE_DIFF[muc].speed * cs.tocDo,
     sight: MAZE_DIFF[muc].sight + (MAZE_DIFF[muc].sight >= 99 ? 0 : cs.themNhin),
   });
-  rng = makeRng(seed * 7919); // câu hỏi cũng gieo hạt → cùng mã mê cung, cùng bộ câu
+  // CÂU HỎI KHÔNG GIEO THEO MÃ MÊ CUNG. Trước đây `makeRng(seed * 7919)` nên chơi lại cùng
+  // một mê cung là gặp lại đúng chuỗi câu cũ ở đúng những cửa cũ — bé học thuộc vị trí đáp
+  // án chứ không học kiến thức, mà nay sai còn mất tim nên học vẹt càng có lợi. Trộn thêm
+  // đồng hồ để mỗi lượt chơi là một chuỗi khác. Bố cục mê cung vẫn gieo theo `seed`, không đổi.
+  rng = makeRng(seed * 7919 + Date.now());
+  cam = makeCam(run);
   man = 'choi';
   dang.length = 0;
   duongTuDi = null;
@@ -275,14 +350,24 @@ function traLoi(i) {
   }
   sai.push(i);
   sHit();
+  // SAI LÀ MẤT MỘT TIM. Hết tim thì `matTim()` đã đưa về chỗ an toàn với đủ tim — đóng luôn
+  // câu hỏi, không bắt bấm nốt mấy lượt còn lại khi nhân vật đã đứng ở chỗ khác rồi.
+  if (run.matTim()) {
+    sBoom();
+    quiz.answer(cau.id, false);
+    return dongCauHoi();
+  }
   if (sai.length >= TOI_DA_SAI) {
     quiz.answer(cau.id, false);
-    loiGiai = true; // vẫn cho qua, nhưng phải đọc lời giải đã
+    loiGiai = true; // hết lượt: đọc lời giải rồi quay lại cửa này sau
   }
 }
 
+// Đóng màn câu hỏi khi KHÔNG trả lời đúng. Cửa khoá vẫn khoá (phải quay lại thử câu khác),
+// còn ô "?" thưởng thì coi như dùng xong — nó là quà, không phải cửa ải.
+// Phạt giây tính theo số lượt đã sai thật, hết tim ở lượt 1 thì không phải chịu phạt của cả 3.
 function dongCauHoi() {
-  run.resolve(false, cau.thuong ? 0 : TOI_DA_SAI * PHAT_GIAY_SAI);
+  run.resolve(false, cau.thuong ? 0 : sai.length * PHAT_GIAY_SAI, !!cau.thuong);
   man = 'choi';
 }
 
@@ -361,7 +446,9 @@ function bamNut(id) {
   else if (id === 'moShop') {
     shopTuDau = man;
     man = 'shop';
-  } else if (id === 'toanManHinh') toanManHinh();
+  } else if (id === 'gocNhin') doiGocNhin();
+  else if (id === 'fps') hienFps ^= 1;
+  else if (id === 'toanManHinh') toanManHinh();
   else if (id.startsWith('mua_')) {
     const m = CUA_HANG.find((t) => t.id === id.slice(4));
     if (m && vi.mua(m.id, m.gia)) sLife();
@@ -372,36 +459,93 @@ function bamNut(id) {
 
 // Bấm vào một ô trong mê cung → tự đi tới đó. Chỉ nhận ô ĐÃ NHÌN THẤY và không phải tường,
 // nếu không thì thành ra chỉ đường qua vùng bé chưa khám phá — mất hết ý nghĩa mê cung.
-function bamO(p) {
-  const u = VIEW.s / run.maze.size;
-  const gx = Math.floor((p.x - VIEW.x) / u),
-    gy = Math.floor((p.y - VIEW.y) / u);
+// Đi tới một ô cho trước. Tách khỏi phần quy đổi toạ độ chuột vì hai góc nhìn quy đổi khác
+// nhau: bản 2D lấy theo khung mê cung, bản nhập vai lấy theo bản đồ nhỏ ở góc.
+function diToO(gx, gy) {
   if (gx < 0 || gy < 0 || gx >= run.maze.size || gy >= run.maze.size) return;
   if (run.maze.isWall(gx, gy) || !run.seen[gy * run.maze.size + gx]) return;
   const c = run.cell;
   const d = solve(run.maze, c.x, c.y, gx, gy);
-  duongTuDi = d.length > 1 ? d.slice(1) : null;
+  // MỘT LẦN BẤM = MỘT Ô. Chỉ lấy bước ĐẦU TIÊN trên đường đi tới ô vừa bấm; bấm lại là
+  // đi tiếp một ô nữa. Người chơi giữ quyền quyết định ở mọi ô, không riêng gì ngã rẽ.
+  duongTuDi = d.length > 1 ? [d[1]] : null;
+  if (cam) cam.bamTheo();
   // Quay mặt ngay về phía vừa bấm, đừng đợi khung sau — người chơi phải thấy lệnh được nhận.
   // Bấm vào chính ô đang đứng thì ngoảnh về phía ô đó so với mình.
   if (duongTuDi) run.nhinVe({ x: duongTuDi[0].x - c.x, y: duongTuDi[0].y - c.y });
   else run.nhinVe({ x: gx - c.x, y: gy - c.y });
 }
 
+function bamO(p) {
+  const u = VIEW.s / run.maze.size;
+  diToO(Math.floor((p.x - VIEW.x) / u), Math.floor((p.y - VIEW.y) / u));
+}
+
+// Bấm vào THẾ GIỚI 3D: bước MỘT ô theo hướng vừa chọn — cùng luật với bấm ô ở bản 2D,
+// nên hai góc nhìn cho cùng một cảm giác điều khiển.
+function bamThegioi(p) {
+  const nhin = huongNhin(cam.yaw);
+  const d = huongTuDiemBam(p, nhin);
+  const c = run.cell;
+  cam.bamTheo(); // ra lệnh thì camera thôi nhìn tự do, bám lại hướng người
+  run.nhinVe(d); // quay mặt trước đã: kể cả bí lối cũng phải thấy máy đã nhận lệnh
+  // CHỈ vùng giữa (▲) là lệnh ĐI; ba vùng kia là lệnh QUAY tại chỗ, khớp đúng với bàn phím.
+  // Nếu ba vùng kia cũng cho đi thì bấm ◀ hai lần là đi ngang hai ô, còn bấm ← hai lần lại
+  // chỉ quay 180° đứng yên — hai đường vào cùng một trò mà hành xử khác hẳn nhau.
+  const thang = d.x === nhin.x && d.y === nhin.y;
+  if (!thang || run.maze.isWall(c.x + d.x, c.y + d.y)) return;
+  duongTuDi = [{ x: c.x + d.x, y: c.y + d.y }]; // một lần bấm = một ô, như bản 2D
+}
+
 cv.addEventListener('mousedown', (e) => {
   const p = toaDoChuot(cv.getBoundingClientRect(), e.clientX, e.clientY, W, H);
+  keo = null;
   if (!p) return;
   dangBam = batNut(nutHienTai(), p.x, p.y);
+  // Bắt đầu kéo xoay: chỉ khi đang đi trong mê cung ở góc nhìn nhập vai, và không phải
+  // đang nhấn lên nút hay lên bản đồ nhỏ — kéo trên bản đồ phải là bấm ô, không phải xoay.
+  if (!dangBam && man === 'choi' && vi.gocNhin && !oTuBanDo(p, run.maze.size))
+    keo = { x: p.x, tong: 0 };
+});
+
+cv.addEventListener('mousemove', (e) => {
+  if (!keo) return;
+  const p = toaDoChuot(cv.getBoundingClientRect(), e.clientX, e.clientY, W, H);
+  if (!p) return;
+  const dx = p.x - keo.x;
+  keo.x = p.x;
+  keo.tong += Math.abs(dx);
+  // DẤU ÂM: kéo là NẮM LẤY CẢNH mà xoay, không phải đẩy camera. Kéo sang phải thì cảnh trôi
+  // theo tay sang phải, tức là góc nhìn quay sang TRÁI — đúng cảm giác của mọi thao tác kéo
+  // (Street View, kéo ảnh, cuộn bản đồ). Dấu dương là kiểu chuột-nhìn của game bắn súng, chỉ
+  // hợp khi con trỏ bị KHOÁ vào giữa màn hình; ở đây con trỏ không khoá nên nó thành ngược.
+  cam.xoay(-dx * DO_NHAY);
 });
 
 cv.addEventListener('mouseup', (e) => {
   const p = toaDoChuot(cv.getBoundingClientRect(), e.clientX, e.clientY, W, H);
   const nhan = dangBam;
   dangBam = null;
+  // Nhả chuột sau khi đã KÉO thì đó là thao tác xoay, không phải lệnh đi. Không phân biệt
+  // hai thứ này thì mỗi lần nhìn quanh xong nhân vật lại bước một ô ngoài ý muốn.
+  const daKeo = !!keo && keo.tong > NGUONG_KEO;
+  keo = null;
   if (!p) return;
   const id = batNut(nutHienTai(), p.x, p.y);
   // Chỉ tính là bấm khi nhả chuột ĐÚNG trên nút đã nhấn xuống — như nút thật.
   if (id && id === nhan) return void bamNut(id);
-  if (man !== 'choi' || id) return;
+  if (man !== 'choi' || id || daKeo) return;
+  // GÓC NHÌN NHẬP VAI: khung mê cung 2D không còn được vẽ nữa nên `VIEW` vô nghĩa — quy đổi
+  // qua nó sẽ ra một ô bừa và nhân vật lững thững đi tới đó. Chỉ BẢN ĐỒ NHỎ bấm được;
+  // bấm vào thế giới 3D thì không làm gì (muốn chém thì dùng PHÍM CÁCH).
+  if (vi.gocNhin) {
+    // Bản đồ nhỏ xét TRƯỚC: nó nằm đè lên vùng "rẽ phải", bấm vào bản đồ mà bị hiểu thành
+    // rẽ phải thì cái bản đồ thành ra bấm không được.
+    const o = oTuBanDo(p, run.maze.size);
+    if (o) diToO(o.x, o.y);
+    else bamThegioi(p);
+    return;
+  }
   // Bấm trúng con quái trong tầm thì CHÉM, không phải đi tới đó — bấm vào quái mà nhân
   // vật lững thững đi tới cho nó đụng là phản trực giác nhất có thể.
   const u = VIEW.s / run.maze.size;
@@ -412,11 +556,16 @@ cv.addEventListener('mouseup', (e) => {
 });
 cv.addEventListener('mouseleave', () => {
   dangBam = null;
+  keo = null; // chuột ra khỏi khung: bỏ dở thao tác xoay, đừng bám theo con trỏ ở ngoài
 });
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ── Bàn phím (giữ nguyên, là lối đi thay thế cho chuột) ─────────────────────
 window.addEventListener('keydown', (e) => {
+  // Hai phím đo đạc, đặt TRƯỚC mọi nhánh khác vì phải bấm được ở bất kỳ màn nào —
+  // kể cả lúc đang treo câu hỏi, chỗ mà nhánh 'hoi' bên dưới nuốt sạch phím.
+  if (e.code === 'Backquote') return void (hienFps ^= 1);
+  if (e.code === 'KeyV') return void doiGocNhin();
   if (man === 'hoi') {
     if (loiGiai && inMap(KEYMAP.ok, e.code)) return dongCauHoi();
     const m = /^(?:Digit|Numpad)([1-4])$/.exec(e.code); // nhận cả hàng số trên và bàn phím số
@@ -431,9 +580,15 @@ window.addEventListener('keydown', (e) => {
   }
   for (const act of ['left', 'right', 'jump', 'down'])
     if (inMap(KEYMAP[act], e.code)) {
-      if (!dang.includes(act)) dang.push(act);
       duongTuDi = null; // chạm bàn phím là huỷ tự đi, người chơi giành lại quyền lái
       e.preventDefault();
+      // GÓC NHÌN NHẬP VAI: trái/phải/lùi là lệnh QUAY TẠI CHỖ, chỉ tiến mới là lệnh đi.
+      // Vì sao không cho "đi sang trái": nhân vật chỉ có MỘT hướng, đi đâu là mặt quay đó.
+      // Nên giữ phím trái sẽ thành xoay vòng tại chỗ — mỗi bước đi lại làm "bên trái" trỏ
+      // sang hướng mới, nhân vật cứ thế lượn vòng tròn. Quay rồi mới tiến là cách duy nhất
+      // vừa giữ được mô hình một hướng, vừa cho cảm giác nhập vai thật.
+      if (vi.gocNhin && man === 'choi' && act !== 'jump') return void quayNguoi(act);
+      if (!dang.includes(act)) dang.push(act);
       return;
     }
   if (inMap(KEYMAP.retry, e.code)) return batDau(hat + 1);
@@ -462,8 +617,20 @@ window.addEventListener('keyup', (e) => {
 });
 
 // Hướng đi của khung này: phím giữ được ưu tiên, không thì bám theo đường tự đi.
+// Quay người tại chỗ ở góc nhìn nhập vai — đổi hướng nhìn, không bước đi.
+function quayNguoi(act) {
+  const r = huongTuongDoi(huongNhin(cam.yaw));
+  run.nhinVe(act === 'left' ? r.trai : act === 'right' ? r.phai : r.lui);
+  cam.bamTheo(); // thôi nhìn tự do, camera xoay theo hướng người vừa quay
+}
+
 function huongDi() {
-  if (dang.length) return HUONG[dang[dang.length - 1]];
+  if (dang.length) {
+    // Bản 2D: phím là hướng BẢN ĐỒ tuyệt đối (nhìn từ trên xuống thì đó mới là đúng).
+    // Bản nhập vai: chỉ còn mỗi lệnh tiến, và tiến là theo HƯỚNG ĐANG NHÌN.
+    if (!vi.gocNhin) return HUONG[dang[dang.length - 1]];
+    return dang.includes('jump') ? huongNhin(cam.yaw) : null;
+  }
   if (!duongTuDi || !duongTuDi.length) return null;
   const c = run.cell;
   const t = duongTuDi[0];
@@ -480,11 +647,13 @@ function huongDi() {
 // là mất sạch, mà đó đúng là cách trẻ con thoát game.
 window.addEventListener('beforeunload', luuVanDangCho);
 
-createLoop((dt) => {
+function veKhung(dt) {
+  nhipFps(dt);
   if (man === 'chon') {
     ctx.fillStyle = MAZE_SKINS[SKINS[skin]].bg;
     ctx.fillRect(0, 0, W, H);
     drawMenu(ctx, trangThaiMenu(), nutManChon(trangThaiMenu()), dangBam);
+    veFps(ctx); // cả ở đây nữa: bật đồng hồ mà ra màn chọn lại mất số là tưởng hỏng
     return;
   }
 
@@ -492,6 +661,7 @@ createLoop((dt) => {
     ctx.fillStyle = MAZE_SKINS[SKINS[skin]].bg;
     ctx.fillRect(0, 0, W, H);
     drawShop(ctx, monShop(), nutCuaHang(monShop(), vi.xu), vi.xu, dangBam);
+    veFps(ctx);
     return;
   }
 
@@ -518,10 +688,16 @@ createLoop((dt) => {
   }
 
   const cfg = MAZE_DIFF[muc];
-  drawMaze(ctx, run, SKINS[skin], cfg.sight);
+  // Góc nhìn đuổi theo hướng mặt ở MỌI màn, kể cả lúc treo câu hỏi hay tạm dừng — nếu chỉ
+  // cập nhật lúc đang chạy thì đóng câu hỏi xong màn hình giật một phát về hướng mới.
+  if (cam) cam.update(run, dt);
+  if (vi.gocNhin) {
+    drawMaze3D(ctx, run, cam, SKINS[skin], cfg.sight);
+    if (man === 'choi') veHuongBam(ctx, run, cam);
+    veBanDoNho(ctx, run, SKINS[skin], cfg.sight);
+  } else drawMaze(ctx, run, SKINS[skin], cfg.sight);
   drawHud(ctx, run, cfg, nhanCap(), vi);
-  if (man === 'choi')
-    drawButtons(ctx, nutTrongMeCung({ mucNhac: vi.amNhac, mucTieng: vi.amTieng }), dangBam);
+  if (man === 'choi') drawButtons(ctx, nutTrongMeCung(trangThaiMeCung()), dangBam);
 
   if (man === 'tam')
     drawPause(
@@ -531,9 +707,22 @@ createLoop((dt) => {
         `🔑 ${run.keys}/${run.needKeys} chìa · 🪙 ${run.coins} xu · ⭐ ${run.stars} sao`,
         '💾 Ván này đã được lưu — tắt máy vẫn chơi tiếp được',
       ],
-      nutTamDung(),
+      nutTamDung({ hienFps, nhapVai: vi.gocNhin }),
       dangBam,
     );
-  else if (man === 'hoi') drawQuestion(ctx, cau, sai, loiGiai);
+  else if (man === 'hoi') drawQuestion(ctx, cau, sai, loiGiai, run);
   else if (man === 'thang') drawWin(ctx, dongThang(), nutManThang(), dangBam);
+  veFps(ctx); // vẽ SAU cùng, để lớp phủ câu hỏi/tạm dừng không che mất số đo
+}
+
+// ĐO THỜI GIAN LÀM VIỆC THẬT, không đo nhịp khung. `requestAnimationFrame` bị chặn theo tần
+// số quét màn hình, nên trên màn 100Hz thì fps đứng yên ở 100 dù công việc nặng lên gấp ba —
+// con số đó chỉ nói "đủ nhanh", không nói "còn thừa bao nhiêu". Còn bao nhiêu mới là thứ
+// quyết định giai đoạn 2 (quái, vũ khí, cửa) có nhét vừa hay không.
+// Trung bình trượt để số khỏi nhảy loạn: một khung lỡ nhịp không kéo cả phép đo đi.
+createLoop((dt) => {
+  const t0 = performance.now();
+  veKhung(dt);
+  const d = performance.now() - t0;
+  msVe = msVe ? msVe * 0.9 + d * 0.1 : d;
 }).start();

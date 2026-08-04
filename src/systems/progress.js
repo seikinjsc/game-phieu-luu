@@ -37,6 +37,9 @@ export function makeProgress(kho = khoMacDinh()) {
   // ngang tiếng nhặt xu thì át mất phản hồi của thao tác.
   let amNhac = 2,
     amTieng = 3;
+  // Góc nhìn: 0 = từ trên xuống · 1 = nhập vai. Mặc định 0 — bản 2D là đường lùi an toàn
+  // cho máy yếu và cho bé chưa quen, người chơi phải TỰ chọn mới sang nhập vai.
+  let gocNhin = 0;
   // Ván đang chơi dở (null = không có) và tiến trình hộp Leitner.
   // Hộp Leitner PHẢI được lưu: đó là toàn bộ việc học tích luỹ được. Mất nó thì mỗi lần mở
   // game lại là bé bắt đầu ôn từ con số không, hỏng hẳn ý nghĩa của cách chọn câu.
@@ -52,6 +55,7 @@ export function makeProgress(kho = khoMacDinh()) {
     const kep = (v, mac) => (Number.isInteger(v) && v >= 0 && v <= 3 ? v : mac);
     amNhac = kep(d.amNhac, 2);
     amTieng = kep(d.amTieng, 3);
+    gocNhin = d.gocNhin === 1 ? 1 : 0; // bản lưu cũ không có trường này → về 0, không vỡ
     van = d.van && typeof d.van === 'object' ? d.van : null;
     quiz = d.quiz && typeof d.quiz === 'object' ? d.quiz : null;
   } catch {
@@ -60,7 +64,10 @@ export function makeProgress(kho = khoMacDinh()) {
 
   const ghi = () => {
     try {
-      kho.setItem(KHOA, JSON.stringify({ xu, diem, caoNhat, daMua, amNhac, amTieng, van, quiz }));
+      kho.setItem(
+        KHOA,
+        JSON.stringify({ xu, diem, caoNhat, daMua, amNhac, amTieng, gocNhin, van, quiz }),
+      );
     } catch {
       /* hết dung lượng hoặc bị chặn — cứ chơi tiếp, chỉ mất phần lưu */
     }
@@ -93,6 +100,14 @@ export function makeProgress(kho = khoMacDinh()) {
     },
     get amTieng() {
       return amTieng;
+    },
+    get gocNhin() {
+      return gocNhin;
+    },
+    // Đổi góc nhìn và nhớ lại — chọn xong mà mở game lần sau lại về mặc định thì rất bực.
+    datGocNhin(v) {
+      gocNhin = v ? 1 : 0;
+      ghi();
     },
     get van() {
       return van;

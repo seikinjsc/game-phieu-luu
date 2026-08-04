@@ -501,7 +501,8 @@ export function drawPause(ctx, dong, nut, dangBam) {
   dong.forEach((t, i) => ctx.fillText(t, W / 2, 184 + i * 24));
   ctx.fillStyle = '#5b6a80';
   ctx.font = '13px system-ui,sans-serif';
-  ctx.fillText('Bấm ESC hoặc P để chơi tiếp', W / 2, 580);
+  // 604 chứ không phải 580: nút "Hiện FPS" kết thúc ở 568 và còn bóng đổ 4px nữa.
+  ctx.fillText('Bấm ESC hoặc P để chơi tiếp', W / 2, 612);
   ctx.textAlign = 'left';
   drawButtons(ctx, nut, dangBam);
 }
@@ -522,15 +523,28 @@ export function drawWin(ctx, dong, nut, dangBam) {
   drawButtons(ctx, nut, dangBam);
 }
 
-export function drawQuestion(ctx, cau, sai, loiGiai) {
+export function drawQuestion(ctx, cau, sai, loiGiai, run = null) {
   ctx.fillStyle = 'rgba(8,11,18,.93)';
   ctx.fillRect(0, 0, W, H);
+
+  // TIM PHẢI THẤY ĐƯỢC NGAY Ở ĐÂY. Màn câu hỏi phủ kín HUD, mà từ nay sai là mất tim —
+  // không thấy tim vơi đi thì hình phạt trở nên vô hình, bé cứ bấm bừa rồi đột ngột bị đưa
+  // về chỗ xuất phát mà không hiểu vì sao.
+  if (run) {
+    ctx.textAlign = 'left';
+    ctx.font = '17px system-ui,sans-serif';
+    for (let i = 0; i < run.timToiDa; i++) {
+      ctx.globalAlpha = i < run.tim ? 1 : 0.22;
+      ctx.fillText('❤️', 40 + i * 21, 62);
+    }
+    ctx.globalAlpha = 1;
+  }
 
   ctx.textAlign = 'center';
   ctx.fillStyle = cau.thuong ? '#ffd257' : '#8fe3ff';
   ctx.font = 'bold 17px system-ui,sans-serif';
   ctx.fillText(
-    cau.thuong ? '⭐ CÂU THƯỞNG — sai cũng không sao' : '🔶 CỬA KHOÁ — trả lời để lấy chìa',
+    cau.thuong ? '⭐ CÂU THƯỞNG — sai vẫn mất tim nhé' : '🔶 CỬA KHOÁ — trả lời đúng mới qua được',
     W / 2,
     56,
   );
@@ -546,7 +560,7 @@ export function drawQuestion(ctx, cau, sai, loiGiai) {
 
   // Bốn lựa chọn xếp 2×2 — nay là NÚT BẤM ĐƯỢC, vị trí lấy từ ui/mecung-ui.js nên
   // chỗ vẽ và chỗ bắt chuột không bao giờ lệch nhau.
-  const nut = nutCauHoi({ dapAn: cau.a, k: cau.k, sai, loiGiai });
+  const nut = nutCauHoi({ dapAn: cau.a, k: cau.k, sai, loiGiai, thuong: cau.thuong });
   for (const b of nut) {
     if (!b.id.startsWith('dapAn')) continue;
     ctx.fillStyle = b.dung ? '#1d6b40' : b.sai ? '#4a2530' : '#2b3446';
@@ -595,18 +609,30 @@ export function drawQuestion(ctx, cau, sai, loiGiai) {
       .slice(0, 3)
       .forEach((t, i) => ctx.fillText(t, W / 2, 434 + i * 26));
     ctx.fillStyle = '#8fe3ff';
-    ctx.fillText('Cửa vẫn mở — không sao cả!', W / 2, 528);
+    ctx.fillText(
+      cau.thuong
+        ? 'Ô thưởng xong rồi — đi tiếp thôi!'
+        : 'Cửa này vẫn khoá — nhớ câu này rồi quay lại nhé!',
+      W / 2,
+      528,
+    );
   } else {
     ctx.fillStyle = sai.length ? '#ff9d7a' : '#7b8798';
     const nhac = [
       'Bấm 1 · 2 · 3 · 4 để chọn',
-      'Chưa đúng, thử lại nhé',
-      'Sai rồi, còn một lần nữa',
+      'Sai rồi, mất một tim — còn 2 lượt',
+      'Mất thêm một tim nữa — còn 1 lượt cuối',
     ][sai.length];
     ctx.fillText(nhac, W / 2, 448);
     if (sai.length) {
       ctx.fillStyle = '#7b8798';
-      ctx.fillText('Sai 3 lần thì cửa vẫn mở — không sao cả', W / 2, 482);
+      ctx.fillText(
+        cau.thuong
+          ? 'Hết 3 lượt là mất ô thưởng này'
+          : 'Hết 3 lượt thì cửa vẫn khoá, phải quay lại thử câu khác',
+        W / 2,
+        482,
+      );
     }
   }
   ctx.textAlign = 'left';
